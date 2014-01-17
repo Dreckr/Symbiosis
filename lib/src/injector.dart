@@ -34,7 +34,7 @@ import 'utils.dart' as Utils;
 class Injector {
   // The key that indentifies the default Injector binding.
   static final Key key =
-      new Key(reflectClass(Injector).qualifiedName);
+      new Key(Injector);
 
   /// The parent of this injector, if it's a child, or null.
   final Injector parent;
@@ -50,6 +50,18 @@ class Injector {
 
   // The map of bindings and its keys.
   final Map<Key, Binding> _bindings = new Map<Key, Binding>();
+  
+  /// A unmodifiable list of all bindings of this injector;
+  List<Binding> get bindings {
+    var bindings = [];
+    
+    bindings.addAll(_bindings.values);
+    if (parent != null) {
+      bindings.addAll(parent.bindings);
+    }
+    
+    return bindings;
+  }
 
   // The map of singleton instances
   final Map<Key, Object> _singletons = new Map<Key, Object>();
@@ -95,12 +107,12 @@ class Injector {
    * instance that was bound with the annotation.
    */
   Object getInstanceOf(Type type, {Object annotatedWith}) {
-    var key = new Key(Utils.typeName(type), annotatedWith: annotatedWith);
+    var key = new Key(type, annotatedWith: annotatedWith);
 
-    return _getInstanceOf(key);
+    return getInstanceOfKey(key);
   }
 
-  Object _getInstanceOf(Key key) {
+  Object getInstanceOfKey(Key key) {
     var binding = _getBinding(key);
 
     if (binding.singleton) {
@@ -138,17 +150,30 @@ class Injector {
   }
 
   Binding _getBinding(Key key) {
-      var binding = _bindings.containsKey(key)
-        ? _bindings[key]
-        : (parent != null)
-            ? parent._getBinding(key)
-            : null;
+    var binding = _findBinding(key);
+    
+    // TODO(diego): Remove this when typeMirror.reflectedType becomes available 
+    // and change Utils.typeOfTypeMirror
+    if (binding == null) {
+      key = new Key(Utils.typeOfTypeMirror(reflectType(key.type)), 
+                    annotatedWith: key.annotation);
+      
+      binding = _findBinding(key);
+    }
 
     if (binding == null) {
       throw new ArgumentError('$key has no binding.');
     }
 
     return binding;
+  }
+  
+  Binding _findBinding(Key key) {
+    return _bindings.containsKey(key)
+        ? _bindings[key]
+        : (parent != null)
+            ? parent._getBinding(key)
+            : null;
   }
   
   Object _buildInstanceOf(Binding binding) {
@@ -165,7 +190,7 @@ class Injector {
       dependencies.forEach((dependency) {
           if (!dependency.isNullable || containsBindingOf(dependency.key)) {
             dependencyResolution[dependency] = 
-                _getInstanceOf(dependency.key);
+                getInstanceOfKey(dependency.key);
           }
       });
       
@@ -174,11 +199,11 @@ class Injector {
   
   _ParameterResolution _resolveParameters(List<ParameterMirror> parameters) {
     var positionalParameters = parameters
-        .where((parameter) => !parameter.isOptional)
-          .map((parameter) =>
-              getInstanceOf((parameter.type as ClassMirror).reflectedType,
-                  annotatedWith: Utils.getBindingAnnotation(parameter))
-        ).toList(growable: false);
+        .where((parameter) => !parameter.isNamed)
+        .map((parameter) =>
+            getInstanceOf((parameter.type as ClassMirror).reflectedType,
+                annotatedWith: Utils.getBindingAnnotation(parameter)))
+        .toList(growable: false);
       
       var namedParameters = new Map<Symbol, Object>();
       parameters.forEach((parameter) {
@@ -187,7 +212,7 @@ class Injector {
               (parameter.type as ClassMirror).reflectedType;
           var annotation = Utils.getBindingAnnotation(parameter);
           
-          var key = new Key.forType(
+          var key = new Key(
               parameterClassMirror,
               annotatedWith: annotation);
           
@@ -229,7 +254,7 @@ class Injector {
         }
       });
       throw new ArgumentError(
-          'Circular dependency found on type ${binding.key.name}:\n$stackInfo');
+          'Circular dependency found on type ${binding.key.type}:\n$stackInfo');
     }
 
     dependencyStack.add(binding.key);

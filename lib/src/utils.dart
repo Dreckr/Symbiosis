@@ -7,9 +7,18 @@ library dado.utils;
 import 'dart:mirrors';
 import 'key.dart';
 
-Symbol typeName(Type type) => reflectType(type).qualifiedName;
+Key makeKey(dynamic k) => (k is Key) ? k : new Key(k);
 
-Key makeKey(dynamic k) => (k is Key) ? k : new Key.forType(k);
+Type typeOfTypeMirror(TypeMirror typeMirror) {
+  if (typeMirror is ClassMirror) {
+    return typeMirror.reflectedType;
+  } else if (typeMirror is TypedefMirror) {
+    // TODO(diego): Use typeMirror.reflectedType when it becomes available
+    return typeMirror.referent.reflectedType;
+  } else {
+    return null;
+  }
+}
 
 Object getBindingAnnotation (DeclarationMirror declarationMirror) {
   List<InstanceMirror> metadata;

@@ -95,16 +95,16 @@ abstract class DeclarativeModule implements Module {
       if (member is VariableMirror) {
         // Variables define "to instance" bindings
         var instance = moduleMirror.getField(member.simpleName).reflectee;
-        var name = member.type.qualifiedName;
+        var type = Utils.typeOfTypeMirror(member.type);
         var annotation = Utils.getBindingAnnotation(member);
-        var key = new Key(name, annotatedWith: annotation);
+        var key = new Key(type, annotatedWith: annotation);
         
         _bindings[key] = new _InstanceBinding(key, instance);
         
       } else if (member is MethodMirror) {
-        var name = member.returnType.qualifiedName;
+        var type = Utils.typeOfTypeMirror(member.returnType);
         var annotation = Utils.getBindingAnnotation(member);
-        Key key = new Key(name, annotatedWith: annotation);
+        Key key = new Key(type, annotatedWith: annotation);
         
         if (member.isAbstract) {
           var typeMirror = member.returnType;
@@ -211,12 +211,11 @@ class _ProviderBinding extends Binding {
       
       provider.parameters.forEach(
         (parameter) {
-          var parameterClassMirror = 
-              (parameter.type as ClassMirror).reflectedType;
+          var parameterType = (parameter.type as ClassMirror).reflectedType;
           var annotation = Utils.getBindingAnnotation(parameter);
           
-          var key = new Key.forType(
-              parameterClassMirror,
+          var key = new Key(
+              parameterType,
               annotatedWith: annotation);
           
           var dependency = 

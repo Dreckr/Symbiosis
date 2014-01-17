@@ -87,10 +87,10 @@ class HasSatisfiedNamedParameter {
   HasSatisfiedNamedParameter({String this.a});
 }
 
-class HasNonSatisfiedNamedParameter {
+class HasUnsatisfiedNamedParameter {
   double a;
 
-  HasNonSatisfiedNamedParameter({double this.a});
+  HasUnsatisfiedNamedParameter({double this.a});
 }
 
 
@@ -147,7 +147,7 @@ abstract class Module1 extends DeclarativeModule {
   
   HasSatisfiedNamedParameter hasSatisfiedNamedParameter();
   
-  HasNonSatisfiedNamedParameter hasNonSatisfiedNamedParameter();
+  HasUnsatisfiedNamedParameter hasUnsatisfiedNamedParameter();
 
   Baz baz(SubBaz subBaz) => subBaz;
 
@@ -287,8 +287,8 @@ main() {
     });
     
     test('should not inject named parameter', () {
-      var o = injector.getInstanceOf(HasNonSatisfiedNamedParameter);
-      expect(o, new isInstanceOf<HasNonSatisfiedNamedParameter>());
+      var o = injector.getInstanceOf(HasUnsatisfiedNamedParameter);
+      expect(o, new isInstanceOf<HasUnsatisfiedNamedParameter>());
       expect(o.a, null);
     });
     
@@ -309,7 +309,7 @@ main() {
     setUp((){
       injector = new Injector([Module1], name: 'parent');
       childInjector = new Injector([Module3],
-          newInstances: [Baz, SubBaz, new Key.forType(Foo, annotatedWith: B)],
+          newInstances: [Baz, SubBaz, new Key(Foo, annotatedWith: B)],
           parent: injector,
           name: 'child');
     });
