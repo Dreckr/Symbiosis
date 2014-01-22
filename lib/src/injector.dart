@@ -9,6 +9,7 @@ import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
 import 'module.dart';
+import 'scope.dart';
 import 'utils.dart' as Utils;
 
 /**
@@ -42,14 +43,10 @@ class Injector {
   /// The name of this injector, if one was provided.
   final String name;
 
-  /*
-   *  The keys for which this injector should provide its own bindings instead
-   *  of using the bindings of it's parent.
-   */
-  final List<Key> _newInstances;
-
   // The map of bindings and its keys.
   final Map<Key, Binding> _bindings = new Map<Key, Binding>();
+  
+  final Map<Type, Scope> _scopes = new Map<Type, Scope>();
   
   /// A unmodifiable list of all bindings of this injector;
   List<Binding> get bindings {
@@ -62,9 +59,17 @@ class Injector {
     
     return bindings;
   }
-
-  // The map of singleton instances
-  final Map<Key, Object> _singletons = new Map<Key, Object>();
+  
+  List<Scope> get scopes {
+    var scopes = [];
+    
+    scopes.addAll(_scopes.values);
+    if (parent != null) {
+      scopes.addAll(parent.scopes);
+    }
+    
+    return scopes;
+  }
 
   /**
    * Constructs a new Injector using [modules] to provide bindings. If [parent]
@@ -74,23 +79,28 @@ class Injector {
    * should create distinct instances for, separate from it's parent.
    * newInstances only apply to singleton bindings.
    */
-  Injector(List<Type> modules, 
+  Injector(List<Module> modules, 
           {Injector this.parent, 
-           List<Type> newInstances,
-           String this.name})
-      : _newInstances = (newInstances == null)
-          ? [] : newInstances.map(Utils.makeKey).toList(growable: false) {
-            
-    if (parent == null && newInstances != null) {
-      throw new ArgumentError('newInstances can only be specified for child'
-          'injectors.');
-    }
-
+           List<Type> sharedScopes,
+           String this.name}) {
+    
     _bindings[key] = new _InjectorBinding(this);
 
     modules.forEach(_registerBindings);
 
     _bindings.values.forEach((binding) => _verifyCircularDependency(binding));
+    
+    if (parent != null && sharedScopes != null) {
+      parent._scopes.forEach((type, scope) {
+        if (sharedScopes.contains(type)) {
+          registerScope(scope);
+        }
+      });
+    }
+    
+    if (!_scopes.containsKey(SingletonScope)) {
+      registerScope(new SingletonScope());
+    }
   }
 
   /**
@@ -99,8 +109,12 @@ class Injector {
    * [newInstances] is a list of Types that the child should create new
    * instances for, rather than use an instance from the parent.
    */
-  Injector createChild(List<Type> modules, {List<Type> newInstances}) =>
+  Injector createChild(List<Module> modules, {List<Type> newInstances}) =>
       new Injector(modules, parent: this);
+  
+  void registerScope(Scope scope) {
+    _scopes[scope.runtimeType] = scope;
+  }
 
   /**
    * Returns an instance of [type]. If [annotatedWith] is provided, returns an
@@ -114,27 +128,37 @@ class Injector {
 
   Object getInstanceOfKey(Key key) {
     var binding = _getBinding(key);
-
-    if (binding.singleton) {
-      return _getSingletonOf(key);
-    }
-
-    return _buildInstanceOf(binding);
-  }
-
-  Object _getSingletonOf(Key key) {
-    if (parent == null ||
-        _newInstances.contains(key) ||
-        _bindings.containsKey(key)) {
-
-      if (!_singletons.containsKey(key)) {
-        _singletons[key] = _buildInstanceOf(_getBinding(key));
+    
+    var instance;
+    Scope scope;
+    
+    if (binding.scope != null) {
+      if (!_scopes.containsKey(binding.scope)) {
+        throw new ArgumentError("${binding.scope} is not a registered scope");
       }
-
-      return _singletons[key];
-    } else {
-      return parent._getSingletonOf(key);
+      
+      scope = _scopes[binding.scope];
     }
+    
+    if (scope != null) {
+      if (!scope.isInProgress) {
+        throw new ArgumentError("${binding.scope} is not in progress");
+      }
+      
+      if (scope.instancePool.containsKey(key)) {
+        instance = scope.instancePool[key];
+      }
+    }
+    
+    if (instance == null) {
+      instance = _buildInstanceOf(binding);
+      
+      if (scope != null) {
+        scope.storeInstance(key, instance);
+      }
+    }
+
+    return instance;
   }
 
   /**
@@ -152,8 +176,6 @@ class Injector {
   Binding _getBinding(Key key) {
     var binding = _findBinding(key);
     
-    // TODO(diego): Remove this when typeMirror.reflectedType becomes available 
-    // and change Utils.typeOfTypeMirror
     if (binding == null) {
       key = new Key(Utils.typeOfTypeMirror(reflectType(key.type)), 
                     annotatedWith: key.annotation);
@@ -202,7 +224,7 @@ class Injector {
         .where((parameter) => !parameter.isNamed)
         .map((parameter) =>
             getInstanceOf((parameter.type as ClassMirror).reflectedType,
-                annotatedWith: Utils.getBindingAnnotation(parameter)))
+                annotatedWith: Utils.findBindingAnnotation(parameter)))
         .toList(growable: false);
       
       var namedParameters = new Map<Symbol, Object>();
@@ -210,7 +232,7 @@ class Injector {
         if (parameter.isNamed) {
           var parameterClassMirror = 
               (parameter.type as ClassMirror).reflectedType;
-          var annotation = Utils.getBindingAnnotation(parameter);
+          var annotation = Utils.findBindingAnnotation(parameter);
           
           var key = new Key(
               parameterClassMirror,
@@ -227,16 +249,7 @@ class Injector {
       return new _ParameterResolution(positionalParameters, namedParameters);
   }
 
-  void _registerBindings(Type moduleType){
-    var classMirror = reflectClass(moduleType);
-    var module = classMirror.newInstance(const Symbol(''), []).reflectee;
-    
-    if (module is Module) {
-      _bindings.addAll(module.bindings);
-    } else {
-      throw new ArgumentError('$moduleType is not a Module');
-    }
-  }
+  void _registerBindings(Module module) => _bindings.addAll(module.bindings);
 
   void _verifyCircularDependency(Binding binding,
                                   {List<Key> dependencyStack}) {
@@ -288,7 +301,7 @@ class _InjectorBinding extends Binding {
   List<Dependency> _dependencies = [];
   
   _InjectorBinding(Injector injector) : 
-    super(Injector.key, singleton: true) {
+    super(Injector.key) {
     _injector = injector;
   }
   

@@ -4,8 +4,10 @@
 
 library dado.utils;
 
+import 'package:inject/inject.dart';
 import 'dart:mirrors';
 import 'key.dart';
+import 'declarative.dart';
 
 Key makeKey(dynamic k) => (k is Key) ? k : new Key(k);
 
@@ -13,26 +15,34 @@ Type typeOfTypeMirror(TypeMirror typeMirror) {
   if (typeMirror is ClassMirror) {
     return typeMirror.reflectedType;
   } else if (typeMirror is TypedefMirror) {
-    // TODO(diego): Use typeMirror.reflectedType when it becomes available
     return typeMirror.referent.reflectedType;
   } else {
     return null;
   }
 }
 
-Object getBindingAnnotation (DeclarationMirror declarationMirror) {
-  List<InstanceMirror> metadata;
-  metadata = declarationMirror.metadata;
-
-  if (metadata.isNotEmpty) {
-    // TODO(justin): what do we do when a declaration has multiple
-    // annotations? What does Guice do? We should probably only allow one
-    // binding annotation per declaration, which means we need a way to
-    // identify binding annotations.
-    return metadata.first.reflectee;
+BindingAnnotation findBindingAnnotation (DeclarationMirror declarationMirror) {
+  var bindingMetadata = declarationMirror.metadata.firstWhere(
+      (metadata) => metadata.reflectee is BindingAnnotation, 
+      orElse: () => null);
+  
+  if (bindingMetadata != null) {
+    return bindingMetadata.reflectee;
+  } else  {
+    return null;
   }
+}
 
-  return null;
+ScopeAnnotation findScopeAnnotation (DeclarationMirror declarationMirror) {
+  var scopeMetadata = declarationMirror.metadata.firstWhere(
+      (metadata) => metadata.reflectee is ScopeAnnotation, 
+      orElse: () => null);
+  
+  if (scopeMetadata != null) {
+    return scopeMetadata.reflectee;
+  } else  {
+    return null;
+  }
 }
 
 List<MethodMirror> getConstructorsMirrors(ClassMirror classMirror) {

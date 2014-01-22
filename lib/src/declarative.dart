@@ -16,6 +16,7 @@ import 'package:inject/inject.dart';
 import 'binding.dart';
 import 'key.dart';
 import 'module.dart';
+import 'scope.dart';
 import 'utils.dart' as Utils;
 
 
@@ -92,69 +93,62 @@ abstract class DeclarativeModule implements Module {
     var classMirror = moduleMirror.type;
 
     classMirror.declarations.values.forEach((member) {
+      var bindingAnnotation = Utils.findBindingAnnotation(member);
+      var scopeAnnotation = Utils.findScopeAnnotation(member);
+      var scopeType;
+      
+      if (scopeAnnotation != null) {
+        scopeType = scopeAnnotation.scopeType;
+      }
+      
       if (member is VariableMirror) {
         // Variables define "to instance" bindings
         var instance = moduleMirror.getField(member.simpleName).reflectee;
         var type = Utils.typeOfTypeMirror(member.type);
-        var annotation = Utils.getBindingAnnotation(member);
-        var key = new Key(type, annotatedWith: annotation);
+        var key = new Key(type, annotatedWith: bindingAnnotation);
         
-        _bindings[key] = new _InstanceBinding(key, instance);
-        
-      } else if (member is MethodMirror) {
-        var type = Utils.typeOfTypeMirror(member.returnType);
-        var annotation = Utils.getBindingAnnotation(member);
-        Key key = new Key(type, annotatedWith: annotation);
-        
-        if (member.isAbstract) {
-          var typeMirror = member.returnType;
-          
-          if (!(typeMirror is ClassMirror)) {
+        if (instance != null) {
+          _bindings[key] = new _InstanceBinding(key, instance);
+        } else {
+          if (!(member.type is ClassMirror)) {
             throw new ArgumentError(
-                '${typeMirror.simpleName} is not a class '
+                '${member.type.simpleName} is not a class '
                 'and can not be used in a constructor binding.');
           }
           
-          if (member.isGetter) {
-            // Abstract getters define singleton bindings
-            _bindings[key] = 
-                new _ConstructorBinding(key, 
-                                        member.returnType, 
-                                        moduleMirror, 
-                                        singleton: true);
-          } else {
-            // Abstract methods define unscoped bindings
-            _bindings[key] =  
-                new _ConstructorBinding(key, 
-                                        member.returnType, 
-                                        moduleMirror);
-          }
+          _bindings[key] = 
+              new _ConstructorBinding(key, member.type, moduleMirror, 
+                                                        scope: scopeType);
+        }
+        
+      } else if (member is MethodMirror && !member.isConstructor &&
+                  !member.isGetter && !member.isSetter) {
+      var type = Utils.typeOfTypeMirror(member.returnType);
+      Key key = new Key(type, annotatedWith: bindingAnnotation);
+        // Non-abstract methods produce instances by being invoked.
+        //
+        // In order for the method to use the injector to resolve dependencies
+        // it must be aware of the injector and the type we're trying to
+        // construct so we set the module's _currentInjector and
+        // _currentTypeName in the provider function.
+        //
+        // This is a slightly unfortunately coupling of Module to it's
+        // injector, but the only way we could find to make this work. It's
+        // a worthwhile tradeoff for having declarative bindings.
+        if (member.isGetter) {
+          // getters should define singleton bindings
+          _bindings[key] =
+              new _ProviderBinding(key, 
+                                   member, 
+                                   moduleMirror,
+                                   scope: scopeType);
         } else {
-          // Non-abstract methods produce instances by being invoked.
-          //
-          // In order for the method to use the injector to resolve dependencies
-          // it must be aware of the injector and the type we're trying to
-          // construct so we set the module's _currentInjector and
-          // _currentTypeName in the provider function.
-          //
-          // This is a slightly unfortunately coupling of Module to it's
-          // injector, but the only way we could find to make this work. It's
-          // a worthwhile tradeoff for having declarative bindings.
-          if (member.isGetter) {
-            // getters should define singleton bindings
-            _bindings[key] =
-                new _ProviderBinding(key, 
-                                     member, 
-                                     moduleMirror,
-                                     singleton: true);
-          } else {
-            // methods should define unscoped bindings
-            // TODO(justin): allow parameters in module method? This would make
-            // defining provided bindings much shorter when they rebind to a
-            // new type.
-            _bindings[key] =
-                new _ProviderBinding(key, member, moduleMirror);
-          }
+          // methods should define unscoped bindings
+          // TODO(justin): allow parameters in module method? This would make
+          // defining provided bindings much shorter when they rebind to a
+          // new type.
+          _bindings[key] =
+              new _ProviderBinding(key, member, moduleMirror);
         }
       }
     });
@@ -162,12 +156,20 @@ abstract class DeclarativeModule implements Module {
   
 }
 
+class ScopeAnnotation {
+  final Type scopeType;
+  
+  const ScopeAnnotation(this.scopeType);
+}
+
+const Singleton = const ScopeAnnotation(SingletonScope);
+
 class _InstanceBinding extends Binding {
   Object _instance;
   List<Dependency> _dependencies = [];
   
   _InstanceBinding(Key key, Object instance) : 
-    super(key, singleton: true) {
+    super(key) {
     _instance = instance;
   }
   
@@ -184,10 +186,10 @@ class _ProviderBinding extends Binding {
   List<Dependency> _dependencies;
   
   _ProviderBinding(Key key, 
-                   MethodMirror this.provider, 
-                   InstanceMirror this.moduleMirror, 
-                   {bool singleton: false}) :
-        super(key, singleton: singleton);
+                   this.provider, 
+                   this.moduleMirror,
+                   {Type scope}) :
+        super(key, scope: scope);
   
   Object buildInstance(DependencyResolution dependencyResolution) {
     if (!provider.isGetter) {
@@ -212,7 +214,7 @@ class _ProviderBinding extends Binding {
       provider.parameters.forEach(
         (parameter) {
           var parameterType = (parameter.type as ClassMirror).reflectedType;
-          var annotation = Utils.getBindingAnnotation(parameter);
+          var annotation = Utils.findBindingAnnotation(parameter);
           
           var key = new Key(
               parameterType,
@@ -271,11 +273,11 @@ class _ConstructorBinding extends _ProviderBinding {
   _ConstructorBinding(Key key, 
                       ClassMirror classMirror, 
                       InstanceMirror moduleMirror, 
-                      {bool singleton: false}) : 
+                      {Type scope}) : 
           super(key, 
                  _selectConstructor(classMirror),
                  moduleMirror, 
-                 singleton: singleton),
+                 scope: scope),
           this.classMirror = classMirror;
   
   @override

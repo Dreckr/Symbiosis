@@ -4,6 +4,8 @@
 
 library dado.key;
 
+import 'package:inject/inject.dart';
+
 /**
  * Keys are used to resolve instances in an [Injector], they are used to
  * register bindings and request an object at the injection point.
@@ -12,7 +14,7 @@ library dado.key;
  */
 class Key {
   final Type type;
-  final Object annotation;
+  final BindingAnnotation annotation;
 
   Key(Type this.type, {Object annotatedWith}) :
       annotation = annotatedWith {

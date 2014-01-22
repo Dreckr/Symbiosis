@@ -16,9 +16,9 @@ import 'key.dart';
  */
 abstract class Binding {
   final Key key;
-  final bool singleton;
+  final Type scope;
   
-  Binding(Key this.key, {bool this.singleton: false});
+  Binding(this.key, {this.scope});
   
   Object buildInstance(DependencyResolution dependencyResolution);
   
@@ -45,13 +45,9 @@ class Dependency {
   /// If this dependency [isPositional], this is its position.
   final int position;
   
-  Dependency(
-      Symbol this.name,
-      Key this.key, {
-        bool this.isNullable: false, 
-        bool this.isPositional: true, 
-        int this.position: 0
-      });
+  Dependency(this.name, this.key, {this.isNullable: false, 
+                                    this.isPositional: true, 
+                                    this.position: 0});
 }
 
 /**
@@ -64,7 +60,7 @@ class Dependency {
 class DependencyResolution {
   Map<Dependency, Object> instances;
   
-  DependencyResolution([Map<Dependency, Object> this.instances]) {
+  DependencyResolution([this.instances]) {
     if (this.instances == null) {
       this.instances = new Map<Dependency, Object>();
     }

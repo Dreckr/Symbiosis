@@ -63,3 +63,4 @@ export 'src/declarative.dart';
 export 'src/injector.dart';
 export 'src/key.dart';
 export 'src/module.dart';
+export 'src/scope.dart';

@@ -108,17 +108,17 @@ class Corge {
 }
 
 class Grault {
-  Quux quux;
+  Corge corge;
   
-  Grault(Quux this.quux);
+  Grault(Corge this.corge);
 }
 
 typedef int SomeFunctionType(String someArg);
 
-const A = 'a';
-const B = 'b';
+const A = const BindingAnnotation('a');
+const B = const BindingAnnotation('b');
 
-abstract class Module1 extends DeclarativeModule {
+class Module1 extends DeclarativeModule {
   int number = 1;
 
   // an instance of a type, similar to bind().toInstance() in Guice
@@ -129,25 +129,28 @@ abstract class Module1 extends DeclarativeModule {
   @B String another_string = "b";
 
   // a singleton, similar to bind().to().in(Singleton.class) in Guice
-  Foo get foo;
+  @Singleton
+  Foo foo;
 
-  @B Foo get fooB;
+  @Singleton
+  @B Foo fooB;
   
-  SubBaz get subBaz;
+  @Singleton
+  SubBaz subBaz;
 
   // a factory binding, similar to bind().to() in Guice
-  Bar newBar();
+  Bar newBar;
 
   // a class that injects the module
-  NeedsInjector needsInjector();
+  NeedsInjector needsInjector;
   
-  HasAnnotatedConstructor hasAnnotatedConstructor(); 
+  HasAnnotatedConstructor hasAnnotatedConstructor; 
   
-  HasNoArgsConstructor hasNoArgsConstructor(); 
+  HasNoArgsConstructor hasNoArgsConstructor; 
   
-  HasSatisfiedNamedParameter hasSatisfiedNamedParameter();
+  HasSatisfiedNamedParameter hasSatisfiedNamedParameter;
   
-  HasUnsatisfiedNamedParameter hasUnsatisfiedNamedParameter();
+  HasUnsatisfiedNamedParameter hasUnsatisfiedNamedParameter;
 
   Baz baz(SubBaz subBaz) => subBaz;
 
@@ -156,36 +159,38 @@ abstract class Module1 extends DeclarativeModule {
   SomeFunctionType someFunction(int number) => (String someArg) => number;
 }
 
-abstract class Module2 extends DeclarativeModule {
+class Module2 extends DeclarativeModule {
 
   Foo foo = new Foo('foo2');
 
-  SubBar newBar();
+  SubBar newBar;
 
   Provided getProvided(Foo foo) => new Provided(2, foo);
 }
 
-abstract class Module3 extends DeclarativeModule {
+class Module3 extends DeclarativeModule {
 
-  Qux get qux;
+  @Singleton
+  Qux qux;
   
-  SubBar get subBar;
+  SubBar subBar;
 
   Bar newBar(SubBar subBar) => subBar;
+  
 }
 
-abstract class Module4 extends DeclarativeModule {
+class Module4 extends DeclarativeModule {
   // to test that direct cyclical dependencies fail.
-  Cycle newCycle();
+  Cycle newCycle;
 }
 
-abstract class Module5 extends DeclarativeModule {
+class Module5 extends DeclarativeModule {
   // to test that indirect cyclical dependencies fail.
-  Quux newQuux();
+  Quux newQuux;
   
-  Corge newCorge();
+  Corge newCorge;
   
-  Grault newGrault();
+  Grault newGrault;
 }
 
 main() {
@@ -193,7 +198,7 @@ main() {
     Injector injector;
 
     setUp((){
-      injector = new Injector([Module1]);
+      injector = new Injector([new Module1()]);
     });
 
     test('should return the value of an instance field', () {
@@ -242,14 +247,14 @@ main() {
     });
 
     test('should use bindings from second module', () {
-      injector = new Injector([Module1, Module2]);
+      injector = new Injector([new Module1(), new Module2()]);
       var foo = injector.getInstanceOf(Foo);
       expect(foo, new isInstanceOf<Foo>());
       expect(foo.name, 'foo2');
     });
 
     test('should use bindings from second module', () {
-      injector = new Injector([Module1, Module2]);
+      injector = new Injector([new Module1(), new Module2()]);
       var provided = injector.getInstanceOf(Provided);
       expect(provided.i, 2);
     });
@@ -293,11 +298,11 @@ main() {
     });
     
     test('should throw ArgumentError on direct cyclical dependencies', () {
-      expect(() => new Injector([Module4]), throwsArgumentError);
+      expect(() => new Injector([new Module4()]), throwsArgumentError);
     });
     
     test('should throw ArgumentError on indirect cyclical dependencies', () {
-      expect(() => new Injector([Module5]), throwsArgumentError);
+      expect(() => new Injector([new Module5()]), throwsArgumentError);
     });
 
   });
@@ -307,9 +312,9 @@ main() {
     Injector childInjector;
 
     setUp((){
-      injector = new Injector([Module1], name: 'parent');
-      childInjector = new Injector([Module3],
-          newInstances: [Baz, SubBaz, new Key(Foo, annotatedWith: B)],
+      injector = new Injector([new Module1()], name: 'parent');
+      childInjector = new Injector([new Module3()],
+          sharedScopes: [SingletonScope],
           parent: injector,
           name: 'child');
     });
@@ -338,15 +343,17 @@ main() {
       expect(bar2, new isInstanceOf<SubBar>());
     });
 
-    test('should have distinct singleton of newInstances', () {
-      var baz1 = injector.getInstanceOf(Baz);
-      var baz2 = childInjector.getInstanceOf(Baz);
-      expect(baz1, isNot(same(baz2)));
-
-      var fooB1 = injector.getInstanceOf(Foo, annotatedWith: B);
-      var fooB2 = childInjector.getInstanceOf(Foo, annotatedWith: B);
-      expect(fooB1, isNot(same(fooB2)));
-    });
+// newInstances are gone!
+//
+//    test('should have distinct singleton of newInstances', () {
+//      var baz1 = injector.getInstanceOf(Baz);
+//      var baz2 = childInjector.getInstanceOf(Baz);
+//      expect(baz1, isNot(same(baz2)));
+//
+//      var fooB1 = injector.getInstanceOf(Foo, annotatedWith: B);
+//      var fooB2 = childInjector.getInstanceOf(Foo, annotatedWith: B);
+//      expect(fooB1, isNot(same(fooB2)));
+//    });
 
     test("should inject itself, not it's parent", () {
       injector.callInjected((Injector i) {
@@ -365,7 +372,7 @@ main() {
     });
 
     test("should maintain singletons for bindings not in the parent", () {
-      var childInjector2 = new Injector([Module3], newInstances: [Baz],
+      var childInjector2 = new Injector([new Module3()],
           parent: injector, name: 'child 2');
       var qux1 = childInjector.getInstanceOf(Qux);
       var qux2 = childInjector2.getInstanceOf(Qux);
