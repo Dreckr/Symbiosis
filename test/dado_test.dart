@@ -115,8 +115,8 @@ class Grault {
 
 typedef int SomeFunctionType(String someArg);
 
-const A = const BindingAnnotation('a');
-const B = const BindingAnnotation('b');
+const A = const Named('a');
+const B = const Named('b');
 
 class Module1 extends DeclarativeModule {
   int number = 1;

@@ -4,7 +4,14 @@
 
 library dado.binding;
 
+import 'package:inject/inject.dart';
 import 'key.dart';
+
+class Named implements BindingAnnotation {
+  final String name;
+  
+  const Named(this.name);
+}
 
 /**
  * Bindings define the way that instances of a [Key] are created. They are used
