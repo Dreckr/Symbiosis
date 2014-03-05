@@ -10,9 +10,7 @@
  */
 library dado.declarative;
 
-import 'dart:collection';
 import 'dart:mirrors';
-import 'package:inject/inject.dart';
 import 'binding.dart';
 import 'key.dart';
 import 'module.dart';
@@ -74,6 +72,7 @@ import 'utils.dart' as Utils;
  *       }
  */
 abstract class DeclarativeModule implements Module {
+  @override
   Map<Key, Binding> get bindings {
     if (_bindings == null) {
       _readBindings();
@@ -83,6 +82,15 @@ abstract class DeclarativeModule implements Module {
   }
   
   Map<Key, Binding> _bindings;
+  
+  @override
+  void install(Module module) {
+    if (_bindings == null) {
+      _readBindings();
+    }
+    
+    _bindings.addAll(module.bindings);
+  }
   
   void _readBindings() {
     if (_bindings == null) {
@@ -108,7 +116,7 @@ abstract class DeclarativeModule implements Module {
         var key = new Key(type, annotatedWith: bindingAnnotation);
         
         if (instance != null) {
-          _bindings[key] = new _InstanceBinding(key, instance);
+          _bindings[key] = new InstanceBinding(key, instance);
         } else {
           if (!(member.type is ClassMirror)) {
             throw new ArgumentError(
@@ -117,8 +125,9 @@ abstract class DeclarativeModule implements Module {
           }
           
           _bindings[key] = 
-              new _ConstructorBinding(key, member.type, moduleMirror, 
-                                                        scope: scopeType);
+              new ConstructorBinding.withMirror(key, 
+                                                member.type,
+                                                scope: scopeType);
         }
         
       } else if (member is MethodMirror && !member.isConstructor &&
@@ -135,21 +144,10 @@ abstract class DeclarativeModule implements Module {
         // This is a slightly unfortunately coupling of Module to it's
         // injector, but the only way we could find to make this work. It's
         // a worthwhile tradeoff for having declarative bindings.
-        if (member.isGetter) {
-          // getters should define singleton bindings
-          _bindings[key] =
-              new _ProviderBinding(key, 
-                                   member, 
-                                   moduleMirror,
-                                   scope: scopeType);
-        } else {
-          // methods should define unscoped bindings
-          // TODO(justin): allow parameters in module method? This would make
-          // defining provided bindings much shorter when they rebind to a
-          // new type.
-          _bindings[key] =
-              new _ProviderBinding(key, member, moduleMirror);
-        }
+        _bindings[key] =
+            new ProviderBinding.withMirror(key, 
+                         new InstanceMethodClosureMirror(moduleMirror, member),
+                         scope: scopeType);
       }
     });
   }
@@ -163,165 +161,3 @@ class ScopeAnnotation {
 }
 
 const Singleton = const ScopeAnnotation(SingletonScope);
-
-class _InstanceBinding extends Binding {
-  Object _instance;
-  List<Dependency> _dependencies = [];
-  
-  _InstanceBinding(Key key, Object instance) : 
-    super(key) {
-    _instance = instance;
-  }
-  
-  Object buildInstance(DependencyResolution dependencyResolution) => _instance;
-  
-  Iterable<Dependency> get dependencies => 
-      new UnmodifiableListView(_dependencies);
-  
-}
-
-class _ProviderBinding extends Binding {
-  final InstanceMirror moduleMirror;
-  final MethodMirror provider;
-  List<Dependency> _dependencies;
-  
-  _ProviderBinding(Key key, 
-                   this.provider, 
-                   this.moduleMirror,
-                   {Type scope}) :
-        super(key, scope: scope);
-  
-  Object buildInstance(DependencyResolution dependencyResolution) {
-    if (!provider.isGetter) {
-      var positionalArguments = 
-            _getPositionalArgsFromResolution(dependencyResolution);
-      var namedArguments = 
-            _getNamedArgsFromResolution(dependencyResolution);
-      
-      return moduleMirror.invoke(provider.simpleName,
-                                  positionalArguments,
-                                  namedArguments).reflectee;
-    } else {
-      return moduleMirror.getField(provider.simpleName).reflectee;
-    }
-  }
-  
-  Iterable<Dependency> get dependencies {
-    if (_dependencies == null) {
-      _dependencies = new List<Dependency>(provider.parameters.length);
-      int position = 0;
-      
-      provider.parameters.forEach(
-        (parameter) {
-          var parameterType = (parameter.type as ClassMirror).reflectedType;
-          var annotation = Utils.findBindingAnnotation(parameter);
-          
-          var key = new Key(
-              parameterType,
-              annotatedWith: annotation);
-          
-          var dependency = 
-              new Dependency(parameter.simpleName,
-                             key, 
-                             isNullable: parameter.isNamed || 
-                                         parameter.isOptional,
-                             isPositional: !parameter.isNamed,
-                             position: position);
-          
-          _dependencies[position] = dependency;
-          
-          position++;
-        });
-    }
-    
-    return new UnmodifiableListView(_dependencies);
-  }
-  
-  List<Object> _getPositionalArgsFromResolution(
-      DependencyResolution dependencyResolution) {
-    var positionalArgs = new List(dependencyResolution.instances.length);
-    
-    dependencyResolution.instances.forEach(
-        (dependency, instance) {
-          if (dependency.isPositional) {
-            positionalArgs[dependency.position] = instance;
-          }
-        });
-    
-    return positionalArgs.where((e) => e != null).toList(growable: false);
-  }
-  
-  Map<Symbol, Object> _getNamedArgsFromResolution(
-      DependencyResolution dependencyResolution) {
-    var namedArgs= new Map();
-    
-    dependencyResolution.instances.forEach(
-        (dependency, instance) {
-          if (!dependency.isPositional) {
-            namedArgs[dependency.name] = instance;
-          }
-        });
-    
-    return namedArgs;
-  }
-  
-}
-
-class _ConstructorBinding extends _ProviderBinding {
-  ClassMirror classMirror;
-  
-  _ConstructorBinding(Key key, 
-                      ClassMirror classMirror, 
-                      InstanceMirror moduleMirror, 
-                      {Type scope}) : 
-          super(key, 
-                 _selectConstructor(classMirror),
-                 moduleMirror, 
-                 scope: scope),
-          this.classMirror = classMirror;
-  
-  @override
-  Object buildInstance(DependencyResolution dependencyResolution) {
-    var positionalArguments = 
-          _getPositionalArgsFromResolution(dependencyResolution);
-    var namedArguments = 
-          _getNamedArgsFromResolution(dependencyResolution);
-    
-    var obj = classMirror.newInstance(provider.constructorName,
-                                      positionalArguments,
-                                      namedArguments).reflectee;
-    
-    return obj;
-  }
-  
-  static MethodMirror _selectConstructor(ClassMirror m) {
-    Iterable<MethodMirror> constructors = Utils.getConstructorsMirrors(m);
-    // Choose contructor using @inject
-    MethodMirror selectedConstructor = constructors.firstWhere(
-      (constructor) => constructor.metadata.any(
-        (metadata) => metadata.reflectee == inject)
-      , orElse: () => null);
-
-    // In case there is no constructor annotated with @inject, see if there's a
-    // single constructor or a no-args.
-    if (selectedConstructor == null) {
-      if (constructors.length == 1) {
-        selectedConstructor = constructors.first;
-      } else {
-        selectedConstructor = constructors.firstWhere(
-            (constructor) => constructor.parameters.where(
-                (parameter) => !parameter.isOptional).length == 0
-        , orElse: () =>  null);
-      }
-    }
-
-    if (selectedConstructor == null) {
-      throw new ArgumentError("${m.qualifiedName} must have only "
-        "one constructor, a constructor annotated with @inject or no-args "
-        "constructor");
-    }
-
-    return selectedConstructor;
-  }
-
-}

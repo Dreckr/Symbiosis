@@ -4,7 +4,6 @@
 
 library dado.injector;
 
-import 'dart:collection';
 import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
@@ -84,7 +83,7 @@ class Injector {
            List<Type> sharedScopes,
            String this.name}) {
     
-    _bindings[key] = new _InjectorBinding(this);
+    _bindings[key] = new InstanceBinding(key, this);
 
     modules.forEach(_registerBindings);
 
@@ -293,21 +292,5 @@ class _ParameterResolution {
   Map<Symbol, Object> namedParameters;
   
   _ParameterResolution (this.positionalParameters, this.namedParameters);
-  
-}
-
-class _InjectorBinding extends Binding {
-  Injector _injector;
-  List<Dependency> _dependencies = [];
-  
-  _InjectorBinding(Injector injector) : 
-    super(Injector.key) {
-    _injector = injector;
-  }
-  
-  Object buildInstance(DependencyResolution dependencyResolution) => _injector;
-  
-  Iterable<Dependency> get dependencies => 
-      new UnmodifiableListView(_dependencies);
   
 }

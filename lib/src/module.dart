@@ -16,4 +16,19 @@ import 'key.dart';
  */
 abstract class Module {
   Map<Key, Binding> get bindings;
+  
+  void install(Module module);
+}
+
+
+class BaseModule implements Module {
+  Map<Key, Binding> _bindings = new Map<Key, Binding>();
+  
+  @override
+  Map<Key, Binding> get bindings => null;
+
+  @override
+  void install(Module module) {
+    _bindings.addAll(module.bindings);
+  }
 }

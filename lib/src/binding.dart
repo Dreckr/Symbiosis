@@ -4,8 +4,11 @@
 
 library dado.binding;
 
+import 'dart:collection';
+import 'dart:mirrors';
 import 'package:inject/inject.dart';
 import 'key.dart';
+import 'utils.dart' as Utils;
 
 class Named implements BindingAnnotation {
   final String name;
@@ -31,6 +34,254 @@ abstract class Binding {
   
   Iterable<Dependency> get dependencies;
   
+}
+
+class InstanceBinding extends Binding {
+  final Object instance;
+  List<Dependency> _dependencies = [];
+  
+  InstanceBinding(Key key, this.instance) : 
+    super(key);
+  
+  Object buildInstance(DependencyResolution dependencyResolution) => instance;
+  
+  Iterable<Dependency> get dependencies => 
+      new UnmodifiableListView(_dependencies);
+  
+}
+
+class ProviderBinding extends Binding {
+  final ClosureMirror closureMirror;
+  final MethodMirror methodMirror;
+  List<Dependency> _dependencies;
+  
+  ProviderBinding(Key key, Function provider, {Type scope}) : 
+    this.withMirror(key, reflect(provider), scope: scope);
+  
+  ProviderBinding.withMirror(Key key, 
+                             ClosureMirror closureMirror, 
+                             {Type scope}) : 
+                                          super(key, scope: scope),
+                                          closureMirror = closureMirror,
+                                          methodMirror = closureMirror.function;
+  
+  Object buildInstance(DependencyResolution dependencyResolution) {
+    var positionalArguments = 
+          _getPositionalArgsFromResolution(dependencyResolution);
+    var namedArguments = 
+          _getNamedArgsFromResolution(dependencyResolution);
+    
+    return closureMirror.invoke(methodMirror.simpleName,
+                                positionalArguments,
+                                namedArguments).reflectee;
+  }
+  
+  Iterable<Dependency> get dependencies {
+      if (_dependencies == null) {
+        _dependencies = new List<Dependency>(methodMirror.parameters.length);
+        int position = 0;
+        
+        methodMirror.parameters.forEach(
+          (parameter) {
+            var parameterType = (parameter.type as ClassMirror).reflectedType;
+            var annotation = Utils.findBindingAnnotation(parameter);
+            
+            var key = new Key(
+                parameterType,
+                annotatedWith: annotation);
+            
+            var dependency = 
+                new Dependency(parameter.simpleName,
+                               key, 
+                               isNullable: parameter.isNamed || 
+                                           parameter.isOptional,
+                               isPositional: !parameter.isNamed,
+                               position: position);
+            
+            _dependencies[position] = dependency;
+            
+            position++;
+          });
+      }
+      
+      return new UnmodifiableListView(_dependencies);
+    }
+  
+  List<Object> _getPositionalArgsFromResolution(
+        DependencyResolution dependencyResolution) {
+      var positionalArgs = new List(dependencyResolution.instances.length);
+      
+      dependencyResolution.instances.forEach(
+          (dependency, instance) {
+            if (dependency.isPositional) {
+              positionalArgs[dependency.position] = instance;
+            }
+          });
+      
+      return positionalArgs.where((e) => e != null).toList(growable: false);
+    }
+    
+    Map<Symbol, Object> _getNamedArgsFromResolution(
+        DependencyResolution dependencyResolution) {
+      var namedArgs= new Map();
+      
+      dependencyResolution.instances.forEach(
+          (dependency, instance) {
+            if (!dependency.isPositional) {
+              namedArgs[dependency.name] = instance;
+            }
+          });
+      
+      return namedArgs;
+    }
+}
+
+class ConstructorBinding extends ProviderBinding {
+  
+  ConstructorBinding(Key key, Type type, {Type scope}) :
+    this.withMirror(key, reflectClass(type), scope: scope);
+  
+  ConstructorBinding.withMirror(Key key, ClassMirror classMirror, {Type scope}): 
+    super.withMirror(key, 
+              new ClassConstructorClosureMirror(classMirror, 
+                                                selectConstructor(classMirror)), 
+              scope: scope);
+  
+  static MethodMirror selectConstructor(ClassMirror m) {
+    Iterable<MethodMirror> constructors = Utils.getConstructorsMirrors(m);
+    // Choose contructor using @inject
+    MethodMirror selectedConstructor = constructors.firstWhere(
+      (constructor) => constructor.metadata.any(
+        (metadata) => metadata.reflectee == inject)
+      , orElse: () => null);
+
+    // In case there is no constructor annotated with @inject, see if there's a
+    // single constructor or a no-args.
+    if (selectedConstructor == null) {
+      if (constructors.length == 1) {
+        selectedConstructor = constructors.first;
+      } else {
+        selectedConstructor = constructors.firstWhere(
+            (constructor) => constructor.parameters.where(
+                (parameter) => !parameter.isOptional).length == 0
+        , orElse: () =>  null);
+      }
+    }
+
+    if (selectedConstructor == null) {
+      throw new ArgumentError("${m.qualifiedName} must have only "
+        "one constructor, a constructor annotated with @inject or no-args "
+        "constructor");
+    }
+
+    return selectedConstructor;
+  }
+
+}
+
+class InstanceMethodClosureMirror implements ClosureMirror {
+  final InstanceMirror instanceMirror;
+  final MethodMirror methodMirror;
+  
+  InstanceMethodClosureMirror(this.instanceMirror, this.methodMirror);
+  
+  @override
+  Function operator [](Symbol name) => instanceMirror[name];
+
+  @override
+  InstanceMirror apply(List positionalArguments, 
+                       [Map<Symbol, dynamic> namedArguments]) =>
+      instanceMirror.invoke(methodMirror.simpleName, 
+                                  positionalArguments, 
+                                  namedArguments);
+
+  @override
+  delegate(Invocation invocation) => instanceMirror.delegate(invocation);
+
+  @override
+  InstanceMirror findInContext(Symbol name, {ifAbsent: null}) =>
+      throw new UnsupportedError("Unsupported");
+
+  @override
+  MethodMirror get function => methodMirror;
+
+  @override
+  InstanceMirror getField(Symbol fieldName) => 
+      instanceMirror.getField(fieldName);
+
+  @override
+  bool get hasReflectee => instanceMirror.hasReflectee;
+
+  @override
+  InstanceMirror invoke(Symbol memberName, 
+                         List positionalArguments, 
+                         [Map<Symbol, dynamic> namedArguments]) =>
+    instanceMirror.invoke(memberName, positionalArguments, namedArguments);
+
+  @override
+  get reflectee => instanceMirror.reflectee;
+
+  @override
+  InstanceMirror setField(Symbol fieldName, Object value) =>
+      instanceMirror.setField(fieldName, value);
+
+  @override
+  ClassMirror get type => instanceMirror.type;
+}
+
+class ClassConstructorClosureMirror implements ClosureMirror {
+  final ClassMirror classMirror;
+  final MethodMirror constructorMirror;
+  
+  ClassConstructorClosureMirror(this.classMirror, this.constructorMirror);
+  
+  @override
+  Function operator [](Symbol name) => classMirror[name];
+
+  @override
+  InstanceMirror apply(List positionalArguments, 
+                       [Map<Symbol, dynamic> namedArguments]) =>
+      classMirror.invoke(constructorMirror.simpleName, 
+                                  positionalArguments, 
+                                  namedArguments);
+
+  @override
+  delegate(Invocation invocation) => 
+      this.invoke(invocation.memberName, 
+                             invocation.positionalArguments, 
+                             invocation.namedArguments);
+
+  @override
+  InstanceMirror findInContext(Symbol name, {ifAbsent: null}) =>
+      throw new UnsupportedError("Unsupported");
+
+  @override
+  MethodMirror get function => constructorMirror;
+
+  @override
+  InstanceMirror getField(Symbol fieldName) => 
+      classMirror.getField(fieldName);
+
+  @override
+  bool get hasReflectee => classMirror.hasReflectedType;
+
+  @override
+  InstanceMirror invoke(Symbol memberName, 
+                         List positionalArguments, 
+                         [Map<Symbol, dynamic> namedArguments]) =>
+    classMirror.newInstance(constructorMirror.constructorName, 
+                            positionalArguments, 
+                            namedArguments);
+
+  @override
+  get reflectee => classMirror.reflectedType;
+
+  @override
+  InstanceMirror setField(Symbol fieldName, Object value) =>
+      classMirror.setField(fieldName, value);
+
+  @override
+  ClassMirror get type => classMirror;
 }
 
 /**
