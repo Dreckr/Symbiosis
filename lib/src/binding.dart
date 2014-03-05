@@ -7,6 +7,7 @@ library dado.binding;
 import 'dart:collection';
 import 'dart:mirrors';
 import 'package:inject/inject.dart';
+import 'injector.dart';
 import 'key.dart';
 import 'utils.dart' as Utils;
 
@@ -177,6 +178,25 @@ class ConstructorBinding extends ProviderBinding {
     return selectedConstructor;
   }
 
+}
+
+class RebindBinding extends Binding {
+  Key rebindingKey;
+  
+  RebindBinding(Key key, this.rebindingKey, {Type scope}) : 
+    super(key, scope: scope);
+  
+  static Dependency _injectorDependency = 
+      new Dependency(#injector, Injector.key);
+  
+  Iterable<Dependency> get dependencies => [_injectorDependency];
+
+  @override
+  Object buildInstance(DependencyResolution dependencyResolution) {
+    var injector = dependencyResolution[_injectorDependency] as Injector;
+    
+    return injector.getInstanceOfKey(rebindingKey);
+  }
 }
 
 class InstanceMethodClosureMirror implements ClosureMirror {
