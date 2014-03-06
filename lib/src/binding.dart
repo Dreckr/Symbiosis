@@ -15,6 +15,8 @@ class Named implements BindingAnnotation {
   final String name;
   
   const Named(this.name);
+  
+  bool operator ==(o) => o is Named && o.name == name;
 }
 
 /**
@@ -37,6 +39,7 @@ abstract class Binding {
   
 }
 
+// TODO(diego): Test binding implementations
 class InstanceBinding extends Binding {
   final Object instance;
   List<Dependency> _dependencies = [];
@@ -67,14 +70,16 @@ class ProviderBinding extends Binding {
                                           methodMirror = closureMirror.function;
   
   Object buildInstance(DependencyResolution dependencyResolution) {
+    if (!_satisfiesDependencies(dependencyResolution)) {
+      throw new ArgumentError('Dependencies were not satisfied');
+    }
+    
     var positionalArguments = 
           _getPositionalArgsFromResolution(dependencyResolution);
     var namedArguments = 
           _getNamedArgsFromResolution(dependencyResolution);
     
-    return closureMirror.invoke(methodMirror.simpleName,
-                                positionalArguments,
-                                namedArguments).reflectee;
+    return closureMirror.apply(positionalArguments, namedArguments).reflectee;
   }
   
   Iterable<Dependency> get dependencies {
@@ -135,6 +140,10 @@ class ProviderBinding extends Binding {
       
       return namedArgs;
     }
+    
+    bool _satisfiesDependencies(DependencyResolution resolution) =>
+      dependencies.every((dependency) =>
+        dependency.isNullable || resolution[dependency] != null);
 }
 
 class ConstructorBinding extends ProviderBinding {
@@ -180,10 +189,10 @@ class ConstructorBinding extends ProviderBinding {
 
 }
 
-class RebindBinding extends Binding {
+class Rebinding extends Binding {
   Key rebindingKey;
   
-  RebindBinding(Key key, this.rebindingKey, {Type scope}) : 
+  Rebinding(Key key, this.rebindingKey, {Type scope}) : 
     super(key, scope: scope);
   
   static Dependency _injectorDependency = 
@@ -261,7 +270,7 @@ class ClassConstructorClosureMirror implements ClosureMirror {
   @override
   InstanceMirror apply(List positionalArguments, 
                        [Map<Symbol, dynamic> namedArguments]) =>
-      classMirror.invoke(constructorMirror.simpleName, 
+      classMirror.newInstance(constructorMirror.constructorName, 
                                   positionalArguments, 
                                   namedArguments);
 

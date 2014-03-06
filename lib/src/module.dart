@@ -21,7 +21,7 @@ abstract class Module {
   void install(Module module);
 }
 
-
+// TODO(diego): Test BaseModule
 abstract class BaseModule implements Module {
   Map<Key, Binding> _bindings = new Map<Key, Binding>();
   
@@ -54,6 +54,7 @@ abstract class BaseModule implements Module {
   configure();
 }
 
+// TODO(diego): Test BindingBuilder
 class BindingBuilder {
   final Type type;
   final BindingAnnotation annotation;
@@ -75,7 +76,7 @@ class BindingBuilder {
     } else if (provider != null) {
       binding = new ProviderBinding(key, provider, scope: scope);
     } else if (rebinding != null) {
-      binding = new RebindBinding(key, 
+      binding = new Rebinding(key, 
           new Key(rebinding, annotatedWith: rebindingAnnotation), scope: scope);
     } else {
       binding = new ConstructorBinding(key, type, scope: scope);

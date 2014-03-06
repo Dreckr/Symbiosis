@@ -24,7 +24,8 @@ class Key {
   bool operator ==(o) => o is Key && o.type == type
       && o.annotation == annotation;
 
-  int get hashCode => type.hashCode * 37 + annotation.hashCode;
+  int get hashCode => type.hashCode * 37 + 
+      (annotation != null ? annotation.hashCode : 0);
 
   String toString() => 'Key: $type'
       '${(annotation!=null?' annotated with $annotation': '')}';
