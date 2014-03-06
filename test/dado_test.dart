@@ -7,6 +7,8 @@ library dado_test;
 import 'package:dado/dado.dart';
 import 'package:inject/inject.dart';
 import 'package:unittest/unittest.dart';
+import 'binding/binding_implementations.dart';
+import 'key/key.dart';
 
 // object with a dependency bound to an instance
 class Foo {
@@ -194,6 +196,9 @@ class Module5 extends DeclarativeModule {
 }
 
 main() {
+  testBindingImplementations();
+  testKey();
+  
   group('injector',(){
     Injector injector;
 
@@ -342,18 +347,6 @@ main() {
       var bar2 = childInjector.getInstanceOf(Bar);
       expect(bar2, new isInstanceOf<SubBar>());
     });
-
-// newInstances are gone!
-//
-//    test('should have distinct singleton of newInstances', () {
-//      var baz1 = injector.getInstanceOf(Baz);
-//      var baz2 = childInjector.getInstanceOf(Baz);
-//      expect(baz1, isNot(same(baz2)));
-//
-//      var fooB1 = injector.getInstanceOf(Foo, annotatedWith: B);
-//      var fooB2 = childInjector.getInstanceOf(Foo, annotatedWith: B);
-//      expect(fooB1, isNot(same(fooB2)));
-//    });
 
     test("should inject itself, not it's parent", () {
       injector.callInjected((Injector i) {
