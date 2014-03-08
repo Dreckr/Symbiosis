@@ -4,6 +4,7 @@
 
 library dado.injector;
 
+import 'dart:collection';
 import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
@@ -44,32 +45,22 @@ class Injector {
 
   // The map of bindings and its keys.
   final Map<Key, Binding> _bindings = new Map<Key, Binding>();
-  
-  final Map<Type, Scope> _scopes = new Map<Type, Scope>();
-  
+
+  final Map<Type, Scope> _scopes = new Map();
+
   /// A unmodifiable list of all bindings of this injector;
   List<Binding> get bindings {
     var bindings = [];
-    
+
     bindings.addAll(_bindings.values);
     if (parent != null) {
       bindings.addAll(parent.bindings);
     }
-    
+
     return bindings;
   }
-  
-  List<Scope> get scopes {
-    var scopes = [];
-    
-    scopes.addAll(_scopes.values);
-    if (parent != null) {
-      scopes.addAll(parent.scopes);
-    }
-    
-    return scopes;
-  }
 
+  List<Scope> get scopes => new UnmodifiableListView(_scopes.values);
   /**
    * Constructs a new Injector using [modules] to provide bindings. If [parent]
    * is specificed, the injector is a child injector that inherits bindings
@@ -78,17 +69,16 @@ class Injector {
    * should create distinct instances for, separate from it's parent.
    * newInstances only apply to singleton bindings.
    */
-  Injector(List<Module> modules, 
-          {Injector this.parent, 
+  Injector(List<Module> modules,
+          {Injector this.parent,
            List<Type> sharedScopes,
            String this.name}) {
-    
-    _bindings[key] = new InstanceBinding(key, this);
 
-    modules.forEach(_registerBindings);
+    registerBinding(new InstanceBinding(key, this));
+    registerScope(new SingletonScope());
 
-    _bindings.values.forEach((binding) => _verifyCircularDependency(binding));
-    
+    modules.forEach(_installModuleScopes);
+
     if (parent != null && sharedScopes != null) {
       parent._scopes.forEach((type, scope) {
         if (sharedScopes.contains(type)) {
@@ -96,10 +86,11 @@ class Injector {
         }
       });
     }
-    
-    if (!_scopes.containsKey(SingletonScope)) {
-      registerScope(new SingletonScope());
-    }
+
+    modules.forEach(_installModuleBindings);
+
+    _bindings.values.forEach((binding) => _verifyCircularDependency(binding));
+
   }
 
   /**
@@ -110,9 +101,13 @@ class Injector {
    */
   Injector createChild(List<Module> modules, {List<Type> newInstances}) =>
       new Injector(modules, parent: this);
-  
+
   void registerScope(Scope scope) {
     _scopes[scope.runtimeType] = scope;
+  }
+
+  void registerBinding(Binding binding) {
+    _bindings[binding.key] = _scopeBinding(binding);
   }
 
   /**
@@ -125,40 +120,7 @@ class Injector {
     return getInstanceOfKey(key);
   }
 
-  Object getInstanceOfKey(Key key) {
-    var binding = _getBinding(key);
-    
-    var instance;
-    Scope scope;
-    
-    if (binding.scope != null) {
-      if (!_scopes.containsKey(binding.scope)) {
-        throw new ArgumentError("${binding.scope} is not a registered scope");
-      }
-      
-      scope = _scopes[binding.scope];
-    }
-    
-    if (scope != null) {
-      if (!scope.isInProgress) {
-        throw new ArgumentError("${binding.scope} is not in progress");
-      }
-      
-      if (scope.instancePool.containsKey(key)) {
-        instance = scope.instancePool[key];
-      }
-    }
-    
-    if (instance == null) {
-      instance = _buildInstanceOf(binding);
-      
-      if (scope != null) {
-        scope.storeInstance(key, instance);
-      }
-    }
-
-    return instance;
-  }
+  Object getInstanceOfKey(Key key) =>_buildInstanceOf(_getBinding(key));
 
   /**
    * Execute the function [f], injecting any arguments.
@@ -168,17 +130,17 @@ class Injector {
     assert(mirror is ClosureMirror);
     var parameterResolution = _resolveParameters(mirror.function.parameters);
     return Function.apply(
-        f, parameterResolution.positionalParameters, 
+        f, parameterResolution.positionalParameters,
         parameterResolution.namedParameters);
   }
 
   Binding _getBinding(Key key) {
     var binding = _findBinding(key);
-    
+
     if (binding == null) {
-      key = new Key(Utils.typeOfTypeMirror(reflectType(key.type)), 
+      key = new Key(Utils.typeOfTypeMirror(reflectType(key.type)),
                     annotatedWith: key.annotation);
-      
+
       binding = _findBinding(key);
     }
 
@@ -188,7 +150,7 @@ class Injector {
 
     return binding;
   }
-  
+
   Binding _findBinding(Key key) {
     return _bindings.containsKey(key)
         ? _bindings[key]
@@ -196,7 +158,7 @@ class Injector {
             ? parent._getBinding(key)
             : null;
   }
-  
+
   Object _buildInstanceOf(Binding binding) {
     var dependencyResolution = _resolveDependencies(binding.dependencies);
     return binding.buildInstance(dependencyResolution);
@@ -207,17 +169,17 @@ class Injector {
 
   DependencyResolution _resolveDependencies(List<Dependency> dependencies) {
       var dependencyResolution = new DependencyResolution();
-      
+
       dependencies.forEach((dependency) {
           if (!dependency.isNullable || containsBindingOf(dependency.key)) {
-            dependencyResolution[dependency] = 
+            dependencyResolution[dependency] =
                 getInstanceOfKey(dependency.key);
           }
       });
-      
+
       return dependencyResolution;
   }
-  
+
   _ParameterResolution _resolveParameters(List<ParameterMirror> parameters) {
     var positionalParameters = parameters
         .where((parameter) => !parameter.isNamed)
@@ -225,30 +187,48 @@ class Injector {
             getInstanceOf((parameter.type as ClassMirror).reflectedType,
                 annotatedWith: Utils.findBindingAnnotation(parameter)))
         .toList(growable: false);
-      
+
       var namedParameters = new Map<Symbol, Object>();
       parameters.forEach((parameter) {
         if (parameter.isNamed) {
-          var parameterClassMirror = 
+          var parameterClassMirror =
               (parameter.type as ClassMirror).reflectedType;
           var annotation = Utils.findBindingAnnotation(parameter);
-          
+
           var key = new Key(
               parameterClassMirror,
               annotatedWith: annotation);
-          
+
           if (containsBindingOf(key)) {
-            namedParameters[parameter.simpleName] = 
+            namedParameters[parameter.simpleName] =
                 getInstanceOf(parameterClassMirror,
                   annotatedWith: annotation);
           }
         }
       });
-      
+
       return new _ParameterResolution(positionalParameters, namedParameters);
   }
 
-  void _registerBindings(Module module) => _bindings.addAll(module.bindings);
+  void _installModuleScopes(Module module) {
+    module.scopes.forEach(registerScope);
+  }
+
+  void _installModuleBindings(Module module) {
+      module.bindings.forEach(registerBinding);
+    }
+
+  Binding _scopeBinding(Binding binding) {
+    if (binding.scope != null) {
+      if (_scopes.containsKey(binding.scope)) {
+        binding = _scopes[binding.scope].scope(binding);
+      } else {
+        throw new ArgumentError("${binding.scope} is not a registered scope");
+      }
+    }
+
+    return binding;
+  }
 
   void _verifyCircularDependency(Binding binding,
                                   {List<Key> dependencyStack}) {
@@ -290,7 +270,7 @@ class Injector {
 class _ParameterResolution {
   List<Object> positionalParameters;
   Map<Symbol, Object> namedParameters;
-  
+
   _ParameterResolution (this.positionalParameters, this.namedParameters);
-  
+
 }

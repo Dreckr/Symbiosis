@@ -65,9 +65,9 @@ class ProviderBinding extends Binding {
   ProviderBinding.withMirror(Key key, 
                              ClosureMirror closureMirror, 
                              {Type scope}) : 
-                                          super(key, scope: scope),
-                                          closureMirror = closureMirror,
-                                          methodMirror = closureMirror.function;
+                              super(key, scope: scope),
+                              closureMirror = closureMirror,
+                              methodMirror = closureMirror.function;
   
   Object buildInstance(DependencyResolution dependencyResolution) {
     if (!_satisfiesDependencies(dependencyResolution)) {

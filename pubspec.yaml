@@ -1,18 +1,15 @@
 name: dado
 version: 0.6.0-dev
 authors:
-  - Dart Authors <misc@dartlang.org>
-  - Diego Rocha <diego.rocha.comp@gmail.com>
+- Dart Authors <misc@dartlang.org>
+- Diego Rocha <diego.rocha.comp@gmail.com>
 description: A dependency injection container for Dart
 homepage: http://dart-lang.github.io/dado/
 documentation: http://dart-lang.github.io/dado/docs/dado.html
 dependencies:
-  analyzer_experimental: '>=0.8.6'
-  args: '>=0.10.0'
+  collection: any
   inject: '>=0.0.1'
   logging: '>=0.9.1'
-  path: '>=1.0.0<2.0.0'
   quiver: '>=0.17.0'
-
 dev_dependencies:
   unittest: '>=0.9.2'

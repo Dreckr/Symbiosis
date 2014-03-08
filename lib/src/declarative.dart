@@ -4,12 +4,13 @@
 
 /**
  * Dado's declarative library.
- * 
+ *
  * This library contains the implementation of the [DeclarativeModule], that is,
  * as it name suggests, a declarative implementation of [Module].
  */
 library dado.declarative;
 
+import 'dart:collection';
 import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
@@ -20,9 +21,9 @@ import 'utils.dart' as Utils;
 
 /**
  * A declarative implementation of [Module].
- * 
+ *
  * In this kind of module, bindings are defined in a declarative manner.
- * 
+ *
  * Bindings are declared with members on a Module. The return type of the member
  * defines what type the binding is for. The kind of member (variable, getter,
  * method) defines the type of binding:
@@ -32,9 +33,9 @@ import 'utils.dart' as Utils;
  * * Abstract getters define singleton bindings.
  * * Abstract methods define unscoped bindings. A new instance is created every
  *   time [Injector.getInstance] is called.
- * * A non-abstract method must return instances of its return type. Getters 
+ * * A non-abstract method must return instances of its return type. Getters
  *   define singletons.
- * 
+ *
  * Example
  * -------
  *
@@ -54,7 +55,7 @@ import 'utils.dart' as Utils;
  *       // Methods that delegate to bindTo() bind a type to a specific
  *       // implementation of that type
  *       Baz baz(SubBaz subBaz) => subBaz;
- *       
+ *
  *       SubBaz get subBaz;
  *
  *       // Bindings can be made to provider methods
@@ -72,31 +73,23 @@ import 'utils.dart' as Utils;
  *       }
  */
 abstract class DeclarativeModule implements Module {
+  bool _initialized = false;
+  List<Binding> _bindings = new List();
+  List<Scope> _scopes = new List();
+
   @override
-  Map<Key, Binding> get bindings {
-    if (_bindings == null) {
-      _readBindings();
-    }
-    
-    return _bindings;
+  List<Binding> get bindings => new UnmodifiableListView(_bindings);
+
+  List<Scope> get scopes => new UnmodifiableListView(_scopes);
+
+  DeclarativeModule() {
+    _readModule();
   }
-  
-  Map<Key, Binding> _bindings;
-  
+
   @override
-  void install(Module module) {
-    if (_bindings == null) {
-      _readBindings();
-    }
-    
-    _bindings.addAll(module.bindings);
-  }
-  
-  void _readBindings() {
-    if (_bindings == null) {
-      _bindings = new Map<Key, Binding>();
-    }
-    
+  void install(Module module) => _bindings.addAll(module.bindings);
+
+  void _readModule() {
     var moduleMirror = reflect(this);
     var classMirror = moduleMirror.type;
 
@@ -104,32 +97,35 @@ abstract class DeclarativeModule implements Module {
       var bindingAnnotation = Utils.findBindingAnnotation(member);
       var scopeAnnotation = Utils.findScopeAnnotation(member);
       var scopeType;
-      
+
       if (scopeAnnotation != null) {
         scopeType = scopeAnnotation.scopeType;
       }
-      
+
       if (member is VariableMirror) {
         // Variables define "to instance" bindings
         var instance = moduleMirror.getField(member.simpleName).reflectee;
         var type = Utils.typeOfTypeMirror(member.type);
         var key = new Key(type, annotatedWith: bindingAnnotation);
-        
+
         if (instance != null) {
-          _bindings[key] = new InstanceBinding(key, instance);
+          if (instance is Scope) {
+            _scopes.add(instance);
+          } else {
+            _bindings.add(new InstanceBinding(key, instance));
+          }
         } else {
           if (!(member.type is ClassMirror)) {
             throw new ArgumentError(
                 '${member.type.simpleName} is not a class '
                 'and can not be used in a constructor binding.');
           }
-          
-          _bindings[key] = 
-              new ConstructorBinding.withMirror(key, 
+
+          _bindings.add(new ConstructorBinding.withMirror(key,
                                                 member.type,
-                                                scope: scopeType);
+                                                scope: scopeType));
         }
-        
+
       } else if (member is MethodMirror && !member.isConstructor &&
                   !member.isGetter && !member.isSetter) {
       var type = Utils.typeOfTypeMirror(member.returnType);
@@ -144,19 +140,18 @@ abstract class DeclarativeModule implements Module {
         // This is a slightly unfortunately coupling of Module to it's
         // injector, but the only way we could find to make this work. It's
         // a worthwhile tradeoff for having declarative bindings.
-        _bindings[key] =
-            new ProviderBinding.withMirror(key, 
+      _bindings.add(new ProviderBinding.withMirror(key,
                          new InstanceMethodClosureMirror(moduleMirror, member),
-                         scope: scopeType);
+                         scope: scopeType));
       }
     });
   }
-  
+
 }
 
 class ScopeAnnotation {
   final Type scopeType;
-  
+
   const ScopeAnnotation(this.scopeType);
 }
 
