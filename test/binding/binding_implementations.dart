@@ -1,5 +1,6 @@
 library dado.test.binding.implementations;
 
+import 'dart:mirrors';
 import 'package:dado/dado.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
@@ -101,6 +102,28 @@ void testBindingImplementations() {
         testInstantiation(positionalBinding, throwsArgumentError);
         testInstantiation(optionalPositionalBinding, returnsNormally);
         testInstantiation(optionalNamedBinding, returnsNormally);
+      });
+    });
+    
+    group('ConstructorBinding:', () {
+      test('Selects adequate constructor', () {
+        var testConstructorSelection = (type, [constructorName]) {
+          var classMirror = reflectClass(type);
+          var selectConstructor = () =>
+            ConstructorBinding.selectConstructor(classMirror);
+          
+          if (constructorName != null) {
+            expect(selectConstructor().constructorName, 
+                   equals(constructorName));
+          } else {
+            expect(selectConstructor, throwsArgumentError);
+          }
+        };
+        
+        testConstructorSelection(Foo, const Symbol(''));
+        testConstructorSelection(HasAnnotatedConstructor, #annotated);
+        testConstructorSelection(HasNoArgsConstructor, #noArgs);
+        testConstructorSelection(HasMultipleUnannotatedConstructors);
       });
     });
   });

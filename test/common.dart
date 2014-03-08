@@ -64,7 +64,7 @@ class HasAnnotatedConstructor {
   HasAnnotatedConstructor();
   
   @inject
-  HasAnnotatedConstructor.second(String this.a);
+  HasAnnotatedConstructor.annotated(String this.a);
 }
 
 class HasNoArgsConstructor {
@@ -87,6 +87,12 @@ class HasUnsatisfiedNamedParameter {
   HasUnsatisfiedNamedParameter({double this.a});
 }
 
+class HasMultipleUnannotatedConstructors {
+  double a, b;
+  
+  HasMultipleUnannotatedConstructors.one(this.a);
+  HasMultipleUnannotatedConstructors.two(this.b);
+}
 
 // Indirect circular dependency tests classes
 class Quux {
