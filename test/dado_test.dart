@@ -13,18 +13,18 @@ import 'key/key.dart';
 // object with a dependency bound to an instance
 class Foo {
   String name;
-  
+
   Foo(String this.name);
-  
+
   String toString() => "Foo { name: $name}";
 }
 
 // object with a singleton dependecy
 class Bar {
   Foo foo;
-  
+
   Bar(Foo this.foo);
-  
+
   String toString() => "Bar {foo: $foo}";
 }
 
@@ -55,31 +55,31 @@ class Cycle {
 // object that depends on the module
 class NeedsInjector {
   Injector injector;
-  
+
   NeedsInjector(Injector this.injector);
 }
 
 // a class that's not injectable, and so needs a provider function
 class Provided {
   final int i;
-  
+
   Provided(int this.i, Foo foo);
 }
 
 class HasAnnotatedConstructor {
   String a;
-  
+
   HasAnnotatedConstructor();
-  
+
   @inject
   HasAnnotatedConstructor.second(String this.a);
 }
 
 class HasNoArgsConstructor {
   String a;
-  
+
   HasNoArgsConstructor(String this.a);
-  
+
   HasNoArgsConstructor.noArgs();
 }
 
@@ -99,19 +99,19 @@ class HasUnsatisfiedNamedParameter {
 // Indirect circular dependency tests classes
 class Quux {
   Corge corge;
-  
+
   Quux(Corge this.corge);
 }
 
 class Corge {
   Grault grault;
-  
+
   Corge(Grault this.grault);
 }
 
 class Grault {
   Corge corge;
-  
+
   Grault(Corge this.corge);
 }
 
@@ -136,7 +136,7 @@ class Module1 extends DeclarativeModule {
 
   @Singleton
   @B Foo fooB;
-  
+
   @Singleton
   SubBaz subBaz;
 
@@ -145,19 +145,19 @@ class Module1 extends DeclarativeModule {
 
   // a class that injects the module
   NeedsInjector needsInjector;
-  
-  HasAnnotatedConstructor hasAnnotatedConstructor; 
-  
-  HasNoArgsConstructor hasNoArgsConstructor; 
-  
+
+  HasAnnotatedConstructor hasAnnotatedConstructor;
+
+  HasNoArgsConstructor hasNoArgsConstructor;
+
   HasSatisfiedNamedParameter hasSatisfiedNamedParameter;
-  
+
   HasUnsatisfiedNamedParameter hasUnsatisfiedNamedParameter;
 
   Baz baz(SubBaz subBaz) => subBaz;
 
   Provided provided(Foo foo) => new Provided(1, foo);
-  
+
   SomeFunctionType someFunction(int number) => (String someArg) => number;
 }
 
@@ -174,11 +174,11 @@ class Module3 extends DeclarativeModule {
 
   @Singleton
   Qux qux;
-  
+
   SubBar subBar;
 
   Bar newBar(SubBar subBar) => subBar;
-  
+
 }
 
 class Module4 extends DeclarativeModule {
@@ -189,16 +189,16 @@ class Module4 extends DeclarativeModule {
 class Module5 extends DeclarativeModule {
   // to test that indirect cyclical dependencies fail.
   Quux newQuux;
-  
+
   Corge newCorge;
-  
+
   Grault newGrault;
 }
 
 main() {
   testBindingImplementations();
   testKey();
-  
+
   group('injector',(){
     Injector injector;
 
@@ -239,7 +239,7 @@ main() {
       expect(baz1, new isInstanceOf<SubBaz>());
       expect(identical(baz1, baz2), true);
     });
-    
+
     test('should return a function', () {
       SomeFunctionType func = injector.getInstanceOf(SomeFunctionType);
       expect(func, new isInstanceOf<SomeFunctionType>());
@@ -277,35 +277,35 @@ main() {
       });
       expect(called, true);
     });
-    
+
     test('should use annotated constructor', () {
       var o = injector.getInstanceOf(HasAnnotatedConstructor);
       expect(o, new isInstanceOf<HasAnnotatedConstructor>());
       expect(o.a, 'a');
     });
-    
+
     test('should use no-args constructor', () {
       var o = injector.getInstanceOf(HasNoArgsConstructor);
       expect(o, new isInstanceOf<HasNoArgsConstructor>());
       expect(o.a, null);
     });
-    
+
     test('should inject named parameter', () {
       var o = injector.getInstanceOf(HasSatisfiedNamedParameter);
       expect(o, new isInstanceOf<HasSatisfiedNamedParameter>());
       expect(o.a, 'a');
     });
-    
+
     test('should not inject named parameter', () {
       var o = injector.getInstanceOf(HasUnsatisfiedNamedParameter);
       expect(o, new isInstanceOf<HasUnsatisfiedNamedParameter>());
       expect(o.a, null);
     });
-    
+
     test('should throw ArgumentError on direct cyclical dependencies', () {
       expect(() => new Injector([new Module4()]), throwsArgumentError);
     });
-    
+
     test('should throw ArgumentError on indirect cyclical dependencies', () {
       expect(() => new Injector([new Module5()]), throwsArgumentError);
     });
@@ -373,5 +373,5 @@ main() {
     });
 
   });
-  
+
 }

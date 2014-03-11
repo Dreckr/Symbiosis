@@ -39,7 +39,7 @@
  *       // Methods that delegate to bindTo() bind a type to a specific
  *       // implementation of that type
  *       Baz baz(SubBaz subBaz) => subBaz;
- *       
+ *
  *       SubBaz get subBaz;
  *
  *       // Bindings can be made to provider methods
@@ -65,5 +65,6 @@ export 'src/declarative.dart';
 export 'src/injector.dart';
 export 'src/key.dart';
 export 'src/module.dart';
+export 'src/scanner.dart';
 export 'src/scope.dart';
 export 'package:inject/inject.dart' show BindingAnnotation, inject;

@@ -87,7 +87,10 @@ abstract class DeclarativeModule implements Module {
   }
 
   @override
-  void install(Module module) => _bindings.addAll(module.bindings);
+  void install(Module module) {
+    _scopes.addAll(module.scopes);
+    _bindings.addAll(module.bindings);
+  }
 
   void _readModule() {
     var moduleMirror = reflect(this);

@@ -46,6 +46,7 @@ abstract class BaseModule implements Module {
 
   @override
   void install(Module module) {
+    _scopes.addAll(module.scopes);
     _bindings.addAll(module.bindings);
   }
 

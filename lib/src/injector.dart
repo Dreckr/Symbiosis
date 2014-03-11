@@ -77,8 +77,6 @@ class Injector {
     registerBinding(new InstanceBinding(key, this));
     registerScope(new SingletonScope());
 
-    modules.forEach(_installModuleScopes);
-
     if (parent != null && sharedScopes != null) {
       parent._scopes.forEach((type, scope) {
         if (sharedScopes.contains(type)) {
@@ -87,6 +85,7 @@ class Injector {
       });
     }
 
+    modules.forEach(_installModuleScopes);
     modules.forEach(_installModuleBindings);
 
     _bindings.values.forEach((binding) => _verifyCircularDependency(binding));
