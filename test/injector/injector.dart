@@ -1,6 +1,6 @@
-library dado.test.injector;
+library symbiosis.test.injector;
 
-import 'package:dado/dado.dart';
+import 'package:dado/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 

@@ -1,4 +1,4 @@
-library dado.scanner;
+library symbiosis.scanner;
 
 import 'dart:collection';
 import 'dart:mirrors';
@@ -10,6 +10,8 @@ import 'scope.dart';
 import 'utils.dart' as Utils;
 
 /**
+ * [EXPERIMENTAL]
+ *
  * An implementation of [Module] that scans [currentMirrorSystem] seeking for
  * bindings.
  *

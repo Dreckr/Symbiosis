@@ -1,6 +1,6 @@
-library dado.test.module.declarative;
+library symbiosis.test.module.declarative;
 
-import 'package:dado/dado.dart';
+import 'package:dado/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 

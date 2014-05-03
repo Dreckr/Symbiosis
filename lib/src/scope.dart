@@ -1,4 +1,4 @@
-library dado.scope;
+library symbiosis.scope;
 
 import 'package:collection/collection.dart';
 import 'binding.dart';

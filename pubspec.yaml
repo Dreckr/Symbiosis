@@ -1,11 +1,9 @@
-name: dado
+name: symbiosis
 version: 0.6.0-dev
 authors:
-- Dart Authors <misc@dartlang.org>
 - Diego Rocha <diego.rocha.comp@gmail.com>
+- Dart Authors <misc@dartlang.org>
 description: A dependency injection container for Dart
-homepage: http://dart-lang.github.io/dado/
-documentation: http://dart-lang.github.io/dado/docs/dado.html
 dependencies:
   collection: any
   inject: '>=0.0.1'

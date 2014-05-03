@@ -1,12 +1,9 @@
-// Copyright (c) 2013, the Dart project authors.  Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
-
-library dado.module;
+library symbiosis.module;
 
 import 'dart:collection';
 import 'package:inject/inject.dart';
 import 'binding.dart';
+import 'injector.dart';
 import 'key.dart';
 import 'scope.dart';
 
@@ -29,7 +26,6 @@ abstract class Module {
   void install(Module module);
 }
 
-// TODO(diego): Test BasicModule
 /**
  * A basic implementation of [Module].
  *
@@ -120,7 +116,6 @@ abstract class BasicModule implements Module {
   configure();
 }
 
-// TODO(diego): Test BindingBuilder
 class BindingBuilder {
   final Type type;
   final BindingAnnotation annotation;
