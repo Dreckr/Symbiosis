@@ -9,6 +9,13 @@ import 'module.dart';
 import 'scope.dart';
 import 'utils.dart' as Utils;
 
+/**
+ * An implementation of [Module] that scans [currentMirrorSystem] seeking for
+ * bindings.
+ *
+ * Classes annotated with `@inject` will be binded. Optionally, this classes can
+ * be annotated with a [BindingAnnotation] and a [ScopeAnnotation]
+ */
 class ScannerModule extends Module {
   List<Binding> _bindings = new List();
   List<Scope> _scopes = new List();
@@ -19,7 +26,7 @@ class ScannerModule extends Module {
   List<Scope> get scopes => new UnmodifiableListView(_scopes);
 
   ScannerModule() {
-    scan();
+    _scan();
   }
 
   void install(Module module) {
@@ -27,7 +34,7 @@ class ScannerModule extends Module {
     _bindings.addAll(module.bindings);
   }
 
-  void scan() {
+  void _scan() {
     currentMirrorSystem().libraries.forEach((uri, library) {
       library.declarations.forEach((name, declaration) {
         if (declaration is ClassMirror) {
@@ -45,5 +52,10 @@ class ScannerModule extends Module {
       });
     });
   }
+}
 
+class ImplementedBy {
+  final Type type;
+
+  const ImplementedBy(this.type);
 }

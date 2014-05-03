@@ -134,11 +134,3 @@ Status
 
 Dado is under active development. It has a few tests, but has not been used in
 production yet.
-
-Known Issues and Limitations
-----------------------------
-
- * No custom scope support. The only scopes are unscoped and singleton.
-   Hierarchical modules might be enough.
- * Modules must extend `Module`. When mixins are better supported in Dart,
-   `Module` can be mixed in instead.

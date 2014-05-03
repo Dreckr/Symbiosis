@@ -5,15 +5,13 @@
 library dado.injector;
 
 import 'dart:collection';
-import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
 import 'module.dart';
 import 'scope.dart';
-import 'utils.dart' as Utils;
 
 /**
- * An Injector constructs objects based on it's configuration. The Injector
+ * An Injector constructs objects based on its configuration. The Injector
  * tracks dependencies between objects and uses the bindings defined in its
  * modules and parent injector to resolve the dependencies and inject them into
  * newly created objects.
@@ -43,12 +41,11 @@ class Injector {
   /// The name of this injector, if one was provided.
   final String name;
 
-  // The map of bindings and its keys.
   final Map<Key, Binding> _bindings = new Map<Key, Binding>();
 
   final Map<Type, Scope> _scopes = new Map();
 
-  /// A unmodifiable list of all bindings of this injector;
+  /// A unmodifiable list of all bindings registered in this injector.
   List<Binding> get bindings {
     var bindings = [];
 
@@ -60,14 +57,14 @@ class Injector {
     return bindings;
   }
 
+/// A unmodifiable list of all scopes registered in this injector.
   List<Scope> get scopes => new UnmodifiableListView(_scopes.values);
   /**
    * Constructs a new Injector using [modules] to provide bindings. If [parent]
    * is specificed, the injector is a child injector that inherits bindings
    * from its parent. The modules of a child injector add to or override its
-   * parent's bindings. [newInstances] is a list of types that a child injector
-   * should create distinct instances for, separate from it's parent.
-   * newInstances only apply to singleton bindings.
+   * parent's bindings. [sharedScopes] is a list of types of scope that this
+   * child should share with its parent.
    */
   Injector(List<Module> modules,
           {Injector this.parent,
@@ -75,7 +72,11 @@ class Injector {
            String this.name}) {
 
     registerBinding(new InstanceBinding(key, this));
-    registerScope(new SingletonScope());
+
+    var singletonScope = new SingletonScope();
+    registerScope(singletonScope);
+    registerBinding(new InstanceBinding(new Key(SingletonScope),
+                                        singletonScope));
 
     if (parent != null && sharedScopes != null) {
       parent._scopes.forEach((type, scope) {
@@ -94,17 +95,20 @@ class Injector {
 
   /**
    * Creates a child of this Injector with the additional modules installed.
-   * [modules] must be a list of Types that extend Module.
-   * [newInstances] is a list of Types that the child should create new
-   * instances for, rather than use an instance from the parent.
+   * [modules] must be a list of [Module]s that will provide more bindings to
+   * the new child injector.
+   * [sharedScopes] is a list of types of scope that the new child injector
+   * should share with its parent.
    */
-  Injector createChild(List<Module> modules, {List<Type> newInstances}) =>
-      new Injector(modules, parent: this);
+  Injector createChild(List<Module> modules, {List<Type> sharedScopes}) =>
+      new Injector(modules, parent: this, sharedScopes: sharedScopes);
 
+  /// Registers a new [Scope].
   void registerScope(Scope scope) {
     _scopes[scope.runtimeType] = scope;
   }
 
+  /// Registers a new [Binding].
   void registerBinding(Binding binding) {
     _bindings[binding.key] = _scopeBinding(binding);
   }
@@ -119,25 +123,20 @@ class Injector {
     return getInstanceOfKey(key);
   }
 
-  Object getInstanceOfKey(Key key) =>_buildInstanceOf(_getBinding(key));
+  /// Returns an instance for [key].
+  Object getInstanceOfKey(Key key) => getInstanceOfBinding(_getBinding(key));
 
-  /**
-   * Execute the function [f], injecting any arguments.
-   */
-  dynamic callInjected(Function f) {
-    var mirror = reflect(f);
-    assert(mirror is ClosureMirror);
-    var parameterResolution = _resolveParameters(mirror.function.parameters);
-    return Function.apply(
-        f, parameterResolution.positionalParameters,
-        parameterResolution.namedParameters);
+
+  Object getInstanceOfBinding(Binding binding) {
+    var dependencyResolution = _resolveDependencies(binding.dependencies);
+    return binding.buildInstance(dependencyResolution);
   }
 
   Binding _getBinding(Key key) {
     var binding = _findBinding(key);
 
     if (binding == null) {
-      key = new Key(Utils.typeOfTypeMirror(reflectType(key.type)),
+      key = new Key(key.type,
                     annotatedWith: key.annotation);
 
       binding = _findBinding(key);
@@ -158,11 +157,6 @@ class Injector {
             : null;
   }
 
-  Object _buildInstanceOf(Binding binding) {
-    var dependencyResolution = _resolveDependencies(binding.dependencies);
-    return binding.buildInstance(dependencyResolution);
-  }
-
   bool containsBindingOf(Key key) => _bindings.containsKey(key) ||
       (parent != null ? parent.containsBindingOf(key) : false);
 
@@ -179,48 +173,16 @@ class Injector {
       return dependencyResolution;
   }
 
-  _ParameterResolution _resolveParameters(List<ParameterMirror> parameters) {
-    var positionalParameters = parameters
-        .where((parameter) => !parameter.isNamed)
-        .map((parameter) =>
-            getInstanceOf((parameter.type as ClassMirror).reflectedType,
-                annotatedWith: Utils.findBindingAnnotation(parameter)))
-        .toList(growable: false);
+  void _installModuleScopes(Module module) =>
+      module.scopes.forEach(registerScope);
 
-      var namedParameters = new Map<Symbol, Object>();
-      parameters.forEach((parameter) {
-        if (parameter.isNamed) {
-          var parameterClassMirror =
-              (parameter.type as ClassMirror).reflectedType;
-          var annotation = Utils.findBindingAnnotation(parameter);
-
-          var key = new Key(
-              parameterClassMirror,
-              annotatedWith: annotation);
-
-          if (containsBindingOf(key)) {
-            namedParameters[parameter.simpleName] =
-                getInstanceOf(parameterClassMirror,
-                  annotatedWith: annotation);
-          }
-        }
-      });
-
-      return new _ParameterResolution(positionalParameters, namedParameters);
-  }
-
-  void _installModuleScopes(Module module) {
-    module.scopes.forEach(registerScope);
-  }
-
-  void _installModuleBindings(Module module) {
+  void _installModuleBindings(Module module) =>
       module.bindings.forEach(registerBinding);
-    }
 
   Binding _scopeBinding(Binding binding) {
     if (binding.scope != null) {
       if (_scopes.containsKey(binding.scope)) {
-        binding = _scopes[binding.scope].scope(binding);
+        binding = new ScopedBinding(_scopes[binding.scope], binding);
       } else {
         throw new ArgumentError("${binding.scope} is not a registered scope");
       }

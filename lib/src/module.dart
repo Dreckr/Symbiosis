@@ -18,25 +18,73 @@ import 'scope.dart';
  * module.
  */
 abstract class Module {
+  /// Bindings declared by this module.
   List<Binding> get bindings;
+
+  /// Scopes provided by this module.
   List<Scope> get scopes;
 
+  /// Installs a module into this. All bindings and scopes provided by [module]
+  /// should also be provided by this.
   void install(Module module);
 }
 
-// TODO(diego): Test BaseModule
-abstract class BaseModule implements Module {
+// TODO(diego): Test BasicModule
+/**
+ * A basic implementation of [Module].
+ *
+ * To use this class you must create your own [Module] extending [BasicModule]
+ * and implement the [configure] method. You can register bindings and scopes
+ * using [bind] and [registerScope], respectively.
+ *
+ * Example
+ * -------
+ *
+ * class MyModule extends BasicModule {
+ *
+ *   configure() {
+ *     // Register a new scope
+ *     registerScope(new MyScope());
+ *
+ *     // Creates a constructor binding for MyType.
+ *     bind(MyType);
+ *
+ *     // Creates a constructor binding for MyAnnotatedType
+ *     // with a binding annotation.
+ *     bind(MyAnnotatedType, const MyAnnotation());
+ *
+ *     // Creates a constructor binding for MyImplementation
+ *     // and a binding that uses instances of MyImplementation
+ *     // to fulfill MyInterface dependencies.
+ *     bind(MyImplementation);
+ *     bind(MyInterface).to = MyImplementation;
+ *
+ *     // Creates a binding that executes a function to
+ *     // build instances of MyProvidedType.
+ *     bind(MyProvidedType).provider = myProvider;
+ *
+ *     // Creates a binding that executes a function to
+ *     // build instances of MyScopedProvidedType and
+ *     // stores them in MyScope.
+ *     bind(MyScopedProvidedType)
+ *       ..provider = myProvider
+ *       ..scope = MyScope;
+ *   }
+ * }
+ */
+abstract class BasicModule implements Module {
   List<Binding> _bindings = new List();
   List<Scope> _scopes = new List();
 
   @override
   List<Binding> get bindings => new UnmodifiableListView(_bindings);
 
+  @override
   List<Scope> get scopes => new UnmodifiableListView(_scopes);
 
   List<BindingBuilder> _bindingBuilders = new List();
 
-  BaseModule() {
+  BasicModule() {
     configure();
     _bindingBuilders.forEach((bindingBuilder) {
       var binding = bindingBuilder.build();
@@ -50,16 +98,25 @@ abstract class BaseModule implements Module {
     _bindings.addAll(module.bindings);
   }
 
+  /**
+   * Registers a new binding for [type]. [annotation] defines if this is an
+   * alternative binding for this [type].
+   *
+   * This method returns a [BindingBuilder] that can be modified to alter your
+   * the registered binding.
+   */
   BindingBuilder bind(Type type, [BindingAnnotation annotation]) {
     var bindingBuilder = new BindingBuilder(type, annotation);
     _bindingBuilders.add(bindingBuilder);
     return bindingBuilder;
   }
 
+  /// Registers a [Scope] on this module.
   void registerScope(Scope scope) {
     _scopes.add(scope);
   }
 
+  /// Configures this module.
   configure();
 }
 
@@ -69,10 +126,9 @@ class BindingBuilder {
   final BindingAnnotation annotation;
 
   Object instance;
-  Type rebinding;
-  BindingAnnotation rebindingAnnotation;
+  Type to;
+  BindingAnnotation toAnnotation;
   Function provider;
-
   Type scope;
 
   BindingBuilder(this.type, [this.annotation]);
@@ -84,9 +140,9 @@ class BindingBuilder {
       binding = new InstanceBinding(key, instance);
     } else if (provider != null) {
       binding = new ProviderBinding(key, provider, scope: scope);
-    } else if (rebinding != null) {
+    } else if (to != null) {
       binding = new Rebinding(key,
-          new Key(rebinding, annotatedWith: rebindingAnnotation), scope: scope);
+          new Key(to, annotatedWith: toAnnotation), scope: scope);
     } else {
       binding = new ConstructorBinding(key, type, scope: scope);
     }

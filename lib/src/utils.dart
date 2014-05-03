@@ -7,43 +7,34 @@ library dado.utils;
 import 'package:inject/inject.dart';
 import 'dart:mirrors';
 import 'key.dart';
-import 'declarative.dart';
+import 'scanner.dart';
+import 'scope.dart';
 
 Key makeKey(dynamic k) => (k is Key) ? k : new Key(k);
 
-Type typeOfTypeMirror(TypeMirror typeMirror) {
-  if (typeMirror is ClassMirror) {
-    return typeMirror.reflectedType;
-  } else if (typeMirror is TypedefMirror) {
-    return typeMirror.referent.reflectedType;
-  } else {
-    return null;
-  }
-}
-
-BindingAnnotation findBindingAnnotation (DeclarationMirror declarationMirror) {
-  var bindingMetadata = declarationMirror.metadata.firstWhere(
-      (metadata) => metadata.reflectee is BindingAnnotation, 
+findMetadata (DeclarationMirror declarationMirror, test(metadataMirror)) {
+  var metadataMirror = declarationMirror.metadata.firstWhere(
+      test,
       orElse: () => null);
-  
-  if (bindingMetadata != null) {
-    return bindingMetadata.reflectee;
+
+  if (metadataMirror != null) {
+    return metadataMirror.reflectee;
   } else  {
     return null;
   }
 }
 
-ScopeAnnotation findScopeAnnotation (DeclarationMirror declarationMirror) {
-  var scopeMetadata = declarationMirror.metadata.firstWhere(
-      (metadata) => metadata.reflectee is ScopeAnnotation, 
-      orElse: () => null);
-  
-  if (scopeMetadata != null) {
-    return scopeMetadata.reflectee;
-  } else  {
-    return null;
-  }
-}
+BindingAnnotation findBindingAnnotation (DeclarationMirror declarationMirror)
+  => findMetadata(declarationMirror,
+                  (metadata) => metadata.reflectee is BindingAnnotation);
+
+ScopeAnnotation findScopeAnnotation (DeclarationMirror declarationMirror) =>
+    findMetadata(declarationMirror,
+                 (metadata) => metadata.reflectee is ScopeAnnotation);
+
+ImplementedBy findImplementedBy (DeclarationMirror declarationMirror)
+  => findMetadata(declarationMirror,
+                  (metadata) => metadata.reflectee is ImplementedBy);
 
 List<MethodMirror> getConstructorsMirrors(ClassMirror classMirror) {
   var constructors = new List<MethodMirror>();

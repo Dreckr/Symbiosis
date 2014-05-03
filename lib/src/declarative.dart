@@ -5,8 +5,8 @@
 /**
  * Dado's declarative library.
  *
- * This library contains the implementation of the [DeclarativeModule], that is,
- * as it name suggests, a declarative implementation of [Module].
+ * This library contains the [DeclarativeModule], that is, as it name suggests,
+ * a declarative implementation of [Module].
  */
 library dado.declarative;
 
@@ -25,16 +25,19 @@ import 'utils.dart' as Utils;
  * In this kind of module, bindings are defined in a declarative manner.
  *
  * Bindings are declared with members on a Module. The return type of the member
- * defines what type the binding is for. The kind of member (variable, getter,
+ * defines what type the binding is for. The type of member (variable, getter,
  * method) defines the type of binding:
  *
- * * Variables define instance bindings. The type of the variable is bound to
- *   its value.
- * * Abstract getters define singleton bindings.
- * * Abstract methods define unscoped bindings. A new instance is created every
- *   time [Injector.getInstance] is called.
- * * A non-abstract method must return instances of its return type. Getters
- *   define singletons.
+ * * Unitialized variables define constructor bindings.
+ *   See also [ConstructorBinding].
+ * * Initialized variables define instance bindings. The type of the variable is
+ *   bound to its value.
+ * * Method or getters define provider bindings. The return type is bound to
+ *   this method or getter.
+ *
+ * This bindings can be scoped using a [ScopeAnnotation]. For example, if you
+ * want to make a binding a singleton, you only have to annotate the member that
+ * defines such binding with [Singleton].
  *
  * Example
  * -------
@@ -43,34 +46,33 @@ import 'utils.dart' as Utils;
  *
  *     class MyModule extends DeclarativeModule {
  *
- *       // binding to an instance, similar to toInstance() in Guice
+ *       // Initialized variable define a binding to an instance.
  *       String serverAddress = "127.0.0.1";
  *
- *       // Getters define singletons, similar to in(Singleton.class) in Guice
- *       Foo get foo;
+ *       // Unitialized variable define a binding to a constructor.
+ *       Bar newBar;
  *
- *       // Methods define a factory binding, similar to bind().to() in Guice
- *       Bar newBar();
- *
- *       // Methods that delegate to bindTo() bind a type to a specific
- *       // implementation of that type
- *       Baz baz(SubBaz subBaz) => subBaz;
- *
- *       SubBaz get subBaz;
+ *       // Getter define a binding to a getter.
+ *       Foo get foo => new Foo('getter');
  *
  *       // Bindings can be made to provider methods
- *       Qux newQux(Foo foo) => new Qux(foo, 'not injected');
- *       }
+ *       Qux newQux (Foo foo) => new Qux(foo, 'not injected');
  *
- *       class Bar {
- *         // A default method is automatically injected with dependencies
- *         Bar(Foo foo);
- *       }
+ *       // Provider bindings can bind a type to an specific implementation of
+ *       // that type.
+ *       Baz subBaz (SubBaz subBaz) => subBaz;
  *
- *       main() {
- *         var injector = new Injector([MyModule]);
- *         Bar bar = injector.getInstance(Bar);
- *       }
+ *     }
+ *
+ *     class Bar {
+ *       // A default constructor is automatically injected with dependencies.
+ *       Bar(Foo foo);
+ *     }
+ *
+ *     main() {
+ *      var injector = new Injector([new MyModule()]);
+ *      Bar bar = injector.getInstanceOf(Bar);
+ *     }
  */
 abstract class DeclarativeModule implements Module {
   bool _initialized = false;
@@ -105,10 +107,11 @@ abstract class DeclarativeModule implements Module {
         scopeType = scopeAnnotation.scopeType;
       }
 
-      if (member is VariableMirror) {
+      if (member is VariableMirror &&
+          member.type != currentMirrorSystem().dynamicType) {
         // Variables define "to instance" bindings
         var instance = moduleMirror.getField(member.simpleName).reflectee;
-        var type = Utils.typeOfTypeMirror(member.type);
+        var type = member.type.reflectedType;
         var key = new Key(type, annotatedWith: bindingAnnotation);
 
         if (instance != null) {
@@ -129,10 +132,11 @@ abstract class DeclarativeModule implements Module {
                                                 scope: scopeType));
         }
 
-      } else if (member is MethodMirror && !member.isConstructor &&
-                  !member.isGetter && !member.isSetter) {
-      var type = Utils.typeOfTypeMirror(member.returnType);
-      Key key = new Key(type, annotatedWith: bindingAnnotation);
+      } else if (member is MethodMirror &&
+                  !member.isConstructor &&
+                  !member.isSetter) {
+        var type = member.returnType.reflectedType;
+        Key key = new Key(type, annotatedWith: bindingAnnotation);
         // Non-abstract methods produce instances by being invoked.
         //
         // In order for the method to use the injector to resolve dependencies
@@ -143,19 +147,11 @@ abstract class DeclarativeModule implements Module {
         // This is a slightly unfortunately coupling of Module to it's
         // injector, but the only way we could find to make this work. It's
         // a worthwhile tradeoff for having declarative bindings.
-      _bindings.add(new ProviderBinding.withMirror(key,
-                         new InstanceMethodClosureMirror(moduleMirror, member),
+        _bindings.add(new ProviderBinding.withMirror(key,
+                         new InstanceMethodClosureMirrorAdapter(moduleMirror, member),
                          scope: scopeType));
       }
     });
   }
 
 }
-
-class ScopeAnnotation {
-  final Type scopeType;
-
-  const ScopeAnnotation(this.scopeType);
-}
-
-const Singleton = const ScopeAnnotation(SingletonScope);
