@@ -1,34 +1,29 @@
-// Copyright (c) 2013, the Dart project authors.  Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
+library symbiosis.key;
 
-library dado.key;
-
-import 'utils.dart' as Utils;
+import 'package:inject/inject.dart';
+import 'injector.dart';
 
 /**
  * Keys are used to resolve instances in an [Injector], they are used to
  * register bindings and request an object at the injection point.
  *
- * Keys consist of a [Symbol] representing the type name and an optional
- * annotation. If you need to create a Key from a [Type] literal, use [forType].
+ * Keys consist of a [Type] and an optional [BindingAnnotation].
  */
 class Key {
-  final Symbol name;
-  final Object annotation;
+  final Type type;
+  final BindingAnnotation annotation;
 
-  Key(this.name, {Object annotatedWith}) : annotation = annotatedWith {
-    if (name == null) throw new ArgumentError("name must not be null");
+  Key(Type this.type, {Object annotatedWith}) :
+      annotation = annotatedWith {
+    if (type == null) throw new ArgumentError("type must not be null");
   }
 
-  factory Key.forType(Type type, {Object annotatedWith}) =>
-      new Key(Utils.typeName(type), annotatedWith: annotatedWith);
-
-  bool operator ==(o) => o is Key && o.name == name
+  bool operator ==(o) => o is Key && o.type == type
       && o.annotation == annotation;
 
-  int get hashCode => name.hashCode * 37 + annotation.hashCode;
+  int get hashCode => type.hashCode * 37 +
+      (annotation != null ? annotation.hashCode : 0);
 
-  String toString() => 'Key: $name'
+  String toString() => 'Key: $type'
       '${(annotation!=null?' annotated with $annotation': '')}';
 }

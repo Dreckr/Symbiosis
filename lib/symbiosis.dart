@@ -1,7 +1,3 @@
-// Copyright (c) 2013, the Dart project authors.  Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
-
 /**
  * Dado is a [dependency injection][di] framework for [Dart][dart].
  *
@@ -39,7 +35,7 @@
  *       // Methods that delegate to bindTo() bind a type to a specific
  *       // implementation of that type
  *       Baz baz(SubBaz subBaz) => subBaz;
- *       
+ *
  *       SubBaz get subBaz;
  *
  *       // Bindings can be made to provider methods
@@ -56,10 +52,14 @@
  *         Bar bar = injector.getInstance(Bar);
  *       }
  */
-library dado;
+
+library symbiosis;
 
 export 'src/binding.dart';
 export 'src/declarative.dart';
 export 'src/injector.dart';
 export 'src/key.dart';
 export 'src/module.dart';
+export 'src/scanner.dart';
+export 'src/scope.dart';
+export 'package:inject/inject.dart' show BindingAnnotation, inject;
