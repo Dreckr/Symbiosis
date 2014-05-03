@@ -1,6 +1,6 @@
 library symbiosis.test.scope.singleton;
 
-import 'package:dado/symbiosis.dart';
+import 'package:symbiosis/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 

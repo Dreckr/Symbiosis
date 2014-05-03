@@ -1,6 +1,6 @@
 library symbiosis.test.common;
 
-import 'package:dado/symbiosis.dart';
+import 'package:symbiosis/symbiosis.dart';
 
 Binding findBinding (Key key, List<Binding> bindings) =>
     bindings

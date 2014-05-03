@@ -1,7 +1,7 @@
 library symbiosis.test.binding.implementations;
 
 import 'dart:mirrors';
-import 'package:dado/symbiosis.dart';
+import 'package:symbiosis/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 
