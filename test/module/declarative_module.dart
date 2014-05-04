@@ -4,6 +4,8 @@ import 'package:symbiosis/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 
+// TODO(diego): Test declarative module extension
+// TODO(diego): Test 'install' method
 void testDeclarativeModule() {
   group("Declarative Module:", () {
     var module = new TestDeclarativeModule();

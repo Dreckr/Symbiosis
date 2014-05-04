@@ -1,66 +1,46 @@
-Dado
-====
+Symbiosis
+=========
+[![Build Status](https://drone.io/github.com/Dreckr/Symbiosis/status.png)](https://drone.io/github.com/Dreckr/Symbiosis/latest)
 
-Dado is a [dependency injection][di] framework for [Dart][dart].
+Symbiosis is a dependency injection framework with heavy focus on extensibility.
 
-[![Build Status](https://drone.io/github.com/dart-lang/dado/status.png)](https://drone.io/github.com/dart-lang/dado/latest)
+It provides a solid core, a DI interface and a set of tools that let you
+get started right away.
 
-Dado attempts to have minimal set of features and a syntax that takes advantage
-of Dart, which makes it different from many other popular DI frameworks.
-
-Dado tries to make DI more lightweight by letting you define modules as Dart
-classes and as declaratively as possible. Bindings can be define by simply
-declaring an abstract method:
+Using Symbiosis is simple and straight forward:
 
 ```dart
-class MyModule extends Module {
-  Foo get foo;
+import 'package:symbiosis/symbiosis.dart';
+
+// Dependant, needs an instance of Bar to be constructed.
+class Foo {
+  Bar bar;
+  
+  Foo(this.bar);
+}
+
+// Dependency, needs to be constructed to fulfill Foo's constructor.
+class Bar {
+
+  Bar();
+}
+
+// Your custom module, defining bindings for classes that are available for 
+// injection.
+class MyModule extends BasicModule {
+  
+  configure() {
+    bind(Foo);
+    bind(Bar);
+  }
+}
+
+// Create an injector, passing your module and ask it for instances.
+void main() {
+  var injector = new Injector([new MyModule()]);
+  var instance = injector.getInstanceOf(Foo);
 }
 ```
-
-Then you can create an injector and get an instance of Foo:
-
-```dart
-var injector = new Injector([MyModule]);
-injector.getInstanceOf(Foo);
-```
-
-Or call an injected closure:
-
-```dart
-injector.callInjected((Foo foo) {
-  print("foo is $foo");
-});
-```
-
-See the tests for more examples.
-
-[dart]: http://dartlang.org
-[di]: http://en.wikipedia.org/wiki/Dependency_injection "Dependency Injection"
-
-Principles
-----------
-
-  1. __Idiomatic:__ Dart is a different language than JavaScript or Java and has
-     different capabilities and styles. Part of Dado's approach is driven by a
-     desire to figure out exactly what a Dart DI framework should look like. We
-     try to use language features to drive configuration whenever possible.
-  2. __Dev-Time Productivity, Deploy-Time Optimization__ Dado uses Dart mirrors
-     to implement injectors dynamically, but we are working on a code generator
-     that will allow tools like dart2js to produce smaller output.
-  3. __Play Well with the Web:__ Dart is at home on the web and Dado should be
-     too, working well with the DOM, and new technologies like custom elements
-     and MDV.
-  4. __Simplicity__ Dado should be as simple as possible, but no simpler.
-  5. __Toolability__ Dado should work well with tools and operations like static find
-     references, refactoring, minifiers, tree-shakers, etc.
-
-Documentation
--------------
-
-See the [dartdoc documentation for Dado][doc]
-
-[doc]: http://dart-lang.github.io/dado/docs/dado.html
 
 Installation
 ------------
@@ -69,68 +49,72 @@ Use [Pub][pub] and simply add the following to your `pubspec.yaml` file:
 
 ```
 dependencies:
-  dado: 0.6.0
+  symbiosis: 0.6.0
 ```
 
-You can find more details on the [Dado page on Pub][dado_pub]
+Declaring bindings
+------------------
 
-[pub]: http://pub.dartlang.org
-[dado_pub]: http://pub.dartlang.org/packages/dado
+Out of the box, there are 2 types of modules that let declare bindings, 
+basic modules and declarative modules.
 
-Binding Examples
-----------------
+Basic modules are inspired on Java Guice's modules and are really easy to use:
 
 ```dart
-import 'package:dado/dado.dart';
+import 'package:symbiosis/symbiosis.dart';
 
-class MyModule extends DeclarativeModule {
-
-  // binding to an instance, similar to bind().toInstance() in Guice
-  String serverAddress = "127.0.0.1";
-
-  // Getters define a singleton, similar to bind().to().in(Singleton.class)
-  // in Guice
-  Foo get foo;
-
-  // Methods define a factory binding, similar to bind().to() in Guice
-  Bar newBar();
+class MyBasicModule extends BasicModule {
   
-  // Methods that delegate to bindTo() bind a type to a specific
-  // implementation of that type
-  Baz baz(SubBaz subBaz) => subBaz;
+  configure() {
+    // Defines a constructor binding for a type
+    bind(Foo);
+    
+    // Binds a type to an implementation
+    bind(Baz).to = SubBaz;
 
-  SubBaz get subBaz;
-
-  // Bindings can be made to provider methods
-  Qux newQux(Foo foo) => new Qux(foo, 'not injected');
-}
-
-class Bar {
-  // When there is only one constructor, it is automatically injected with
-  // dependencies
-  Bar(Foo foo);
-}
-
-class Baz {
-  String serverAddress;
-  
-  Baz();
-  
-  // In classes that have multiple constructors, the desired constructor can
-  // be selected using the @inject annotation. Otherwise, Dado will look for
-  // a no-args constructor.
-  @inject
-  Baz.injectable(String this.serverAddress);
-}
-
-main() {
-  var injector = new Injector([MyModule]);
-  Bar bar = injector.getInstance(Bar);
+    // Binds a type to an instance
+    bind(Qux).instance = new Qux();
+    
+    // Defines an alternative binding for type Foo by passing a 
+    // BindingAnnotation
+    bind(Foo, const Named("b")).instance = new Foo.b();
+    
+    // Binds a provider function to a type
+    bind(Provided).provider = (Foo foo) {
+      new Provided(foo);
+    };
+    
+    // Defines a scoped constructor binding
+    // Any type of binding can be scoped by defining its 'scope' property.
+    bind(Scoped).scope = SingletonScope;
+  }
 }
 ```
 
-Status
-------
+Declaratives modules are inspired on Dart Dado's modules and are a bit more fun:
 
-Dado is under active development. It has a few tests, but has not been used in
-production yet.
+```dart
+import 'package:symbiosis/symbiosis.dart';
+
+class MyDeclarativeModule extends DeclarativeModule {
+
+  // Defines a constructor binding for a type
+  Foo foo;
+  
+  // Binds a type to an instance
+  Qux qux = new Qux();
+
+  // Defines an alternative binding for type Foo by passing annotating it with
+  // a BindingAnnotation
+  @Named("b")
+  Foo alteranativeFoo = new Foo.b();
+
+  // Binds a provider function to a type
+  Provided provided(Foo foo) => new Provided(foo);
+
+  // Defines a scoped constructor binding
+  // Any type of binding can be scoped by annotating it with a ScopeAnnotation.
+  @Singleton
+  Scoped scope;
+}
+```

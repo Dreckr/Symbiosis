@@ -122,7 +122,7 @@ class Injector {
   /// Returns an instance for [key].
   Object getInstanceOfKey(Key key) => getInstanceOfBinding(_getBinding(key));
 
-
+  /// Returns an instance for [binding].
   Object getInstanceOfBinding(Binding binding) {
     var dependencyResolution = _resolveDependencies(binding.dependencies);
     return binding.buildInstance(dependencyResolution);
@@ -153,6 +153,7 @@ class Injector {
             : null;
   }
 
+  // Checks if there is a binding registered for [key]
   bool containsBindingOf(Key key) => _bindings.containsKey(key) ||
       (parent != null ? parent.containsBindingOf(key) : false);
 
@@ -222,12 +223,4 @@ class Injector {
   }
 
   String toString() => 'Injector: $name';
-}
-
-class _ParameterResolution {
-  List<Object> positionalParameters;
-  Map<Symbol, Object> namedParameters;
-
-  _ParameterResolution (this.positionalParameters, this.namedParameters);
-
 }

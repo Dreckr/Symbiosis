@@ -2,11 +2,8 @@ library symbiosis.utils;
 
 import 'package:inject/inject.dart';
 import 'dart:mirrors';
-import 'key.dart';
 import 'scanner.dart';
 import 'scope.dart';
-
-Key makeKey(dynamic k) => (k is Key) ? k : new Key(k);
 
 findMetadata (DeclarationMirror declarationMirror, test(metadataMirror)) {
   var metadataMirror = declarationMirror.metadata.firstWhere(

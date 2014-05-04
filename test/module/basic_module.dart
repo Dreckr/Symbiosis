@@ -4,6 +4,7 @@ import 'package:symbiosis/symbiosis.dart';
 import 'package:unittest/unittest.dart';
 import '../common.dart';
 
+// TODO(diego): Test 'install' method
 void testBasicModule() {
 
   group("Binding Builder:", () {

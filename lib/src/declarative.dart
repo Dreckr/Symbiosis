@@ -1,15 +1,10 @@
-/**
- * Dado's declarative library.
- *
- * This library contains the [DeclarativeModule], that is, as it name suggests,
- * a declarative implementation of [Module].
- */
-library symbiosis.declarative;
+library symbiosis.module.declarative;
 
 import 'dart:collection';
 import 'dart:mirrors';
 import 'binding.dart';
 import 'key.dart';
+import 'mirror_bindings.dart';
 import 'module.dart';
 import 'scope.dart';
 import 'utils.dart' as Utils;
@@ -20,7 +15,7 @@ import 'utils.dart' as Utils;
  *
  * In this kind of module, bindings are defined in a declarative manner.
  *
- * Bindings are declared with members on a Module. The return type of the member
+ * Bindings are declared with members on a DeclarativeModule. The return type of the member
  * defines what type the binding is for. The type of member (variable, getter,
  * method) defines the type of binding:
  *
@@ -38,42 +33,34 @@ import 'utils.dart' as Utils;
  * Example
  * -------
  *
- *     import 'package:dado/dado.dart';
+ * import 'package:symbiosis/symbiosis.dart';
  *
- *     class MyModule extends DeclarativeModule {
+ * class MyDeclarativeModule extends DeclarativeModule {
  *
- *       // Initialized variable define a binding to an instance.
- *       String serverAddress = "127.0.0.1";
+ *   // Defines a constructor binding for a type
+ *   Foo foo;
  *
- *       // Unitialized variable define a binding to a constructor.
- *       Bar newBar;
+ *   // Binds a type to an instance
+ *   Qux qux = new Qux();
  *
- *       // Getter define a binding to a getter.
- *       Foo get foo => new Foo('getter');
+ *   // Defines an alternative binding for type Foo by passing annotating it with
+ *   // a BindingAnnotation
+ *   @Named("b")
+ *   Foo alteranativeFoo = new Foo.b();
  *
- *       // Bindings can be made to provider methods
- *       Qux newQux (Foo foo) => new Qux(foo, 'not injected');
+ *   // Binds a provider function to a type
+ *   Provided provided(Foo foo) => new Provided(foo);
  *
- *       // Provider bindings can bind a type to an specific implementation of
- *       // that type.
- *       Baz subBaz (SubBaz subBaz) => subBaz;
- *
- *     }
- *
- *     class Bar {
- *       // A default constructor is automatically injected with dependencies.
- *       Bar(Foo foo);
- *     }
- *
- *     main() {
- *      var injector = new Injector([new MyModule()]);
- *      Bar bar = injector.getInstanceOf(Bar);
- *     }
+ *   // Defines a scoped constructor binding
+ *   // Any type of binding can be scoped by annotating it with a ScopeAnnotation.
+ *   @Singleton
+ *   Scoped scope;
+ * }
  */
 abstract class DeclarativeModule implements Module {
   bool _initialized = false;
-  List<Binding> _bindings = new List();
-  List<Scope> _scopes = new List();
+  List<Binding> _bindings = new List<Binding>();
+  List<Scope> _scopes = new List<Scope>();
 
   @override
   List<Binding> get bindings => new UnmodifiableListView(_bindings);
@@ -133,18 +120,9 @@ abstract class DeclarativeModule implements Module {
                   !member.isSetter) {
         var type = member.returnType.reflectedType;
         Key key = new Key(type, annotatedWith: bindingAnnotation);
-        // Non-abstract methods produce instances by being invoked.
-        //
-        // In order for the method to use the injector to resolve dependencies
-        // it must be aware of the injector and the type we're trying to
-        // construct so we set the module's _currentInjector and
-        // _currentTypeName in the provider function.
-        //
-        // This is a slightly unfortunately coupling of Module to it's
-        // injector, but the only way we could find to make this work. It's
-        // a worthwhile tradeoff for having declarative bindings.
+
         _bindings.add(new ProviderBinding.withMirror(key,
-                         new InstanceMethodClosureMirrorAdapter(moduleMirror, member),
+                         new InstanceClosureMirrorAdapter(moduleMirror, member),
                          scope: scopeType));
       }
     });

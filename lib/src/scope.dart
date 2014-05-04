@@ -4,20 +4,30 @@ import 'package:collection/collection.dart';
 import 'binding.dart';
 import 'key.dart';
 
+/**
+ * Scopes allow the injector to reuse instances of a biinding by defining their
+ * lifetime.
+ *
+ * This abstract class defines the interface that must be implemented by any
+ * scope.
+ */
 abstract class Scope {
 
+  /// Returns whether this scopes in currently in progress
   bool get isInProgress;
 
-  Map<Key, Object> get instancePool;
-
+  /// Stores an [instance] of [key]
   void storeInstance(Key key, Object instance);
 
-  bool containsInstanceOf(Key key);
+  /// Returns whether this scope has an instance of [key]
+  bool hasInstanceOf(Key key);
 
+  /// Returns the stored instance of [key], if found
   Object getInstanceOf(Key key);
 
 }
 
+/// A scope for instances with a lifetime as long as the application.
 class SingletonScope implements Scope {
   Map<Key, Object> _instancePool = new Map<Key, Object>();
 
@@ -34,7 +44,7 @@ class SingletonScope implements Scope {
   }
 
   @override
-  bool containsInstanceOf(Key key) =>
+  bool hasInstanceOf(Key key) =>
       _instancePool.containsKey(key);
 
   @override
@@ -43,6 +53,7 @@ class SingletonScope implements Scope {
 
 }
 
+/// Encapsulates a binding, scoping its instances
 class ScopedBinding implements Binding {
   final Scope _scope;
   final Binding _binding;
@@ -57,7 +68,7 @@ class ScopedBinding implements Binding {
       throw new ArgumentError("${scope} is not in progress");
     }
 
-    if (_scope.containsInstanceOf(key)) {
+    if (_scope.hasInstanceOf(key)) {
       return _scope.getInstanceOf(key);
     } else {
       var instance = _binding.buildInstance(dependencyResolution);
@@ -69,7 +80,7 @@ class ScopedBinding implements Binding {
 
   @override
   Iterable<Dependency> get dependencies {
-    if (_scope.isInProgress && _scope.instancePool.containsKey(key)) {
+    if (_scope.isInProgress && _scope.hasInstanceOf(key)) {
       return [];
     } else {
       return _binding.dependencies;

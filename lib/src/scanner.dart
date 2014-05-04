@@ -5,6 +5,7 @@ import 'dart:mirrors';
 import 'package:inject/inject.dart';
 import 'binding.dart';
 import 'key.dart';
+import 'mirror_bindings.dart';
 import 'module.dart';
 import 'scope.dart';
 import 'utils.dart' as Utils;
@@ -16,7 +17,7 @@ import 'utils.dart' as Utils;
  * bindings.
  *
  * Classes annotated with `@inject` will be binded. Optionally, this classes can
- * be annotated with a [BindingAnnotation] and a [ScopeAnnotation]
+ * be annotated with a [BindingAnnotation] and a [ScopeAnnotation].
  */
 class ScannerModule extends Module {
   List<Binding> _bindings = new List();

@@ -23,7 +23,7 @@ void testSingletonScope() {
       scope.storeInstance(key, instance);
 
       expect(scope.instancePool, hasLength(1));
-      expect(scope.containsInstanceOf(key), isTrue);
+      expect(scope.hasInstanceOf(key), isTrue);
       expect(scope.getInstanceOf(key), equals(instance));
     });
   });

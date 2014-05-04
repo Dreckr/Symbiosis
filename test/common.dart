@@ -16,9 +16,6 @@ class TestScope extends Scope {
   Map<Key, Object> _instancePool = new Map();
 
   @override
-  Map<Key, Object> get instancePool => _instancePool;
-
-  @override
   bool get isInProgress => true;
 
   @override
@@ -27,7 +24,7 @@ class TestScope extends Scope {
   }
 
   @override
-  bool containsInstanceOf(Key key) =>
+  bool hasInstanceOf(Key key) =>
       _instancePool.containsKey(key);
 
   @override

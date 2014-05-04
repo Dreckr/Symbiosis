@@ -1,64 +1,46 @@
 /**
- * Dado is a [dependency injection][di] framework for [Dart][dart].
+ * Symbiosis is a fully-featured dependency injection framework with heavy focus
+ * on extensibility.
  *
- * Dado attempts to have minimal set of features and a syntax that takes
- * advantage of Dart, which makes it different from many other popular DI
- * frameworks.
+ * To understand how Symbiosis works, you must understand this 5 simple concepts
+ * and how they interact:
+ *  * [Binding] - Define how an instance of a [Type] is obtained;
+ *  * [Key] - Identify different bindings;
+ *  * [Scope] - Defines the lifetime of instances;
+ *  * [Module] - Is a set of bindings and scopes that configure an [Injector];
+ *  * [Injector] - Builds instances according to its configuration (modules).
  *
- * Dado tries to make DI more lightweight by letting you define modules as Dart
- * classes and as declaratively as possible. Bindings can be define by simply
- * declaring an abstract method:
+ *  Symbiosis has a hard implementation for only 2 of this concepts, [Key]
+ *  and [Injector], the others are interfaces that you can implement yourself,
+ *  if desired, or you can use one of the built-in implementations.
  *
- *     class MyModule extends Module {
- *       Foo get foo;
- *     }
+ *  To use Symbiosis is really simple. First, you need to create a [Module]:
+ *    class MyModule extends BasicModule {
  *
- * [dart]: http://dartlang.org
- * [di]: http://en.wikipedia.org/wiki/Dependency_injection
+ *        void configure() {
+ *          bind(MyType);
+ *        }
+ *    }
  *
- * Example
- * -------
+ *  Your module can implement the [Module] interface directly or it can extend
+ *  or it can extend one of the built-in abstract classes
+ *  ([BasicModule] and [DeclarativeModule]). Now, you only have to create an
+ *  injector passing your module (or many of them) and ask it for instances:
  *
- *     import 'package:dado/dado.dart';
- *
- *     class MyModule extends DeclarativeModule {
- *
- *       // binding to an instance, similar to toInstance() in Guice
- *       String serverAddress = "127.0.0.1";
- *
- *       // Getters define singletons, similar to in(Singleton.class) in Guice
- *       Foo get foo;
- *
- *       // Methods define a factory binding, similar to bind().to() in Guice
- *       Bar newBar();
- *
- *       // Methods that delegate to bindTo() bind a type to a specific
- *       // implementation of that type
- *       Baz baz(SubBaz subBaz) => subBaz;
- *
- *       SubBaz get subBaz;
- *
- *       // Bindings can be made to provider methods
- *       Qux newQux(Foo foo) => new Qux(foo, 'not injected');
- *       }
- *
- *       class Bar {
- *         // A default method is automatically injected with dependencies
- *         Bar(Foo foo);
- *       }
- *
- *       main() {
- *         var injector = new Injector([MyModule]);
- *         Bar bar = injector.getInstance(Bar);
- *       }
+ *    void main() {
+ *      var injector = new Injector([new MyModule]);
+ *      MyType myInstance = injector.getInstanceOf(MyType);
+ *    }
  */
 
 library symbiosis;
 
+export 'src/basic_module.dart';
 export 'src/binding.dart';
 export 'src/declarative.dart';
 export 'src/injector.dart';
 export 'src/key.dart';
+export 'src/mirror_bindings.dart';
 export 'src/module.dart';
 export 'src/scanner.dart';
 export 'src/scope.dart';
