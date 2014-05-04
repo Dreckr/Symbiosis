@@ -45,7 +45,7 @@ void main() {
 Installation
 ------------
 
-Use [Pub][pub] and simply add the following to your `pubspec.yaml` file:
+Use Pub and simply add the following to your `pubspec.yaml` file:
 
 ```
 dependencies:

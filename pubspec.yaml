@@ -5,7 +5,6 @@ authors:
 - Dart Authors <misc@dartlang.org>
 description: A dependency injection framework for Dart
 dependencies:
-  collection: any
   inject: '>=0.0.1'
   logging: '>=0.9.1'
   quiver: '>=0.17.0'
