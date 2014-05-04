@@ -1,9 +1,9 @@
 name: symbiosis
-version: 0.6.0-dev
+version: 0.6.0
 authors:
 - Diego Rocha <diego.rocha.comp@gmail.com>
 - Dart Authors <misc@dartlang.org>
-description: A dependency injection container for Dart
+description: A dependency injection framework for Dart
 dependencies:
   collection: any
   inject: '>=0.0.1'
