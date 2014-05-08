@@ -85,8 +85,6 @@ class Injector {
     modules.forEach(_installModuleScopes);
     modules.forEach(_installModuleBindings);
 
-    _bindings.values.forEach((binding) => _verifyCircularDependency(binding));
-
   }
 
   /**
@@ -123,20 +121,39 @@ class Injector {
   Object getInstanceOfKey(Key key) => getInstanceOfBinding(_getBinding(key));
 
   /// Returns an instance for [binding].
-  Object getInstanceOfBinding(Binding binding) {
-    var dependencyResolution = _resolveDependencies(binding.dependencies);
-    return binding.buildInstance(dependencyResolution);
+  Object getInstanceOfBinding(Binding binding) =>
+      _getInstanceOfBinding(binding);
+
+  Object _getInstanceOfBinding(Binding binding, [_InjectionContext context]) {
+    if (context == null) {
+      context = new _InjectionContext(binding.key);
+    } else {
+      context.registerInjection(binding.key);
+    }
+
+    var instance = binding.buildInstance(
+        (Key key, [bool isOptional]) {
+      var binding;
+      if (isOptional) {
+        binding = _findBinding(key);
+
+        if (binding == null) {
+          return null;
+        }
+      } else {
+        binding = _getBinding(key);
+      }
+
+      return this._getInstanceOfBinding(binding, context);
+    });
+
+    context.unregisterLast();
+
+    return instance;
   }
 
   Binding _getBinding(Key key) {
     var binding = _findBinding(key);
-
-    if (binding == null) {
-      key = new Key(key.type,
-                    annotatedWith: key.annotation);
-
-      binding = _findBinding(key);
-    }
 
     if (binding == null) {
       throw new ArgumentError('$key has no binding.');
@@ -157,19 +174,6 @@ class Injector {
   bool containsBindingOf(Key key) => _bindings.containsKey(key) ||
       (parent != null ? parent.containsBindingOf(key) : false);
 
-  DependencyResolution _resolveDependencies(List<Dependency> dependencies) {
-      var dependencyResolution = new DependencyResolution();
-
-      dependencies.forEach((dependency) {
-          if (!dependency.isNullable || containsBindingOf(dependency.key)) {
-            dependencyResolution[dependency] =
-                getInstanceOfKey(dependency.key);
-          }
-      });
-
-      return dependencyResolution;
-  }
-
   void _installModuleScopes(Module module) =>
       module.scopes.forEach(registerScope);
 
@@ -188,39 +192,44 @@ class Injector {
     return binding;
   }
 
-  void _verifyCircularDependency(Binding binding,
-                                  {List<Key> dependencyStack}) {
-    if (dependencyStack == null) {
-      dependencyStack = [];
+  String toString() => 'Injector: $name';
+}
+
+class _InjectionContext {
+  int _lastCheckIndex =  0;
+  final List<Key> _injections;
+
+  _InjectionContext (Key initialInjection) : _injections = [initialInjection];
+
+  registerInjection (Key key) {
+    _injections.add(key);
+
+    if (_injections.length > _lastCheckIndex * 2) {
+      _checkCircularDependency();
+      _lastCheckIndex = _injections.length - 1;
     }
-
-    if (dependencyStack.contains(binding.key)) {
-      dependencyStack.add(binding.key);
-      var stackInfo = dependencyStack.fold(null, (value, dependency) {
-        if (value == null) {
-          return dependency.toString();
-        } else {
-          return '$value =>\n$dependency';
-        }
-      });
-      throw new ArgumentError(
-          'Circular dependency found on type ${binding.key.type}:\n$stackInfo');
-    }
-
-    dependencyStack.add(binding.key);
-
-    var dependencies = binding.dependencies;
-    dependencies.forEach((dependency) {
-      if (!dependency.isNullable || containsBindingOf(dependency.key)) {
-        var dependencyBinding = this._getBinding(dependency.key);
-
-        _verifyCircularDependency(dependencyBinding,
-          dependencyStack: dependencyStack);
-      }
-    });
-
-    dependencyStack.removeLast();
   }
 
-  String toString() => 'Injector: $name';
+  unregisterLast() {
+    _injections.removeLast();
+  }
+
+  _checkCircularDependency() {
+    for (int i = 0; i < _injections.length; i++) {
+      var found = false;
+
+      for (int j = i + 1; j < _injections.length; j++) {
+        if (_injections[i] == _injections[j]) {
+          found = true;
+          break;
+        }
+      }
+
+      if (found) {
+        throw new ArgumentError(
+            'Circular dependency found on type ${_injections[i].type}:\n');
+      }
+    }
+  }
+
 }

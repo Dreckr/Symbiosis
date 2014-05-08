@@ -122,7 +122,7 @@ abstract class DeclarativeModule implements Module {
         Key key = new Key(type, annotatedWith: bindingAnnotation);
 
         _bindings.add(new ProviderBinding.withMirror(key,
-                         new InstanceClosureMirrorAdapter(moduleMirror, member),
+                         new MethodClosureMirrorAdapter(moduleMirror, member),
                          scope: scopeType));
       }
     });

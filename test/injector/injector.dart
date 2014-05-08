@@ -68,11 +68,13 @@ void testInjector() {
     });
 
     test("Throws ArgumentError on direct cyclical dependencies", () {
-      expect(() => new Injector([new Module4()]), throwsArgumentError);
+      expect(() => new Injector([new Module4()]).getInstanceOf(Cycle),
+          throwsArgumentError);
     });
 
     test("Throws ArgumentError on indirect cyclical dependencies", () {
-      expect(() => new Injector([new Module5()]), throwsArgumentError);
+      expect(() => new Injector([new Module5()]).getInstanceOf(Quux),
+          throwsArgumentError);
     });
 
   });

@@ -1,6 +1,5 @@
 library symbiosis.binding.mirror;
 
-import 'dart:collection';
 import 'dart:mirrors';
 import 'package:inject/inject.dart';
 import 'binding.dart';
@@ -12,13 +11,14 @@ import 'utils.dart' as Utils;
  *
  * A provider can be a [Function] or a [ClosureMirror]. Using a [ClosureMirror]
  * allows you to use a class constructor or instance method as a provider with
- * the help of [ClassClosureMirrorAdapter] and
- * [InstanceClosureMirrorAdapter].
+ * the help of [ConstructorClosureMirrorAdapter] and
+ * [MethodClosureMirrorAdapter].
  */
 class ProviderBinding extends Binding {
   final ClosureMirror closureMirror;
   final MethodMirror methodMirror;
-  List<Dependency> _dependencies;
+  Map<Key, bool> _positionalDependencies;
+  Map<Key, Symbol> _namedDependencies;
 
   ProviderBinding(Key key, Function provider, {Type scope}) :
     this.withMirror(key, reflect(provider), scope: scope);
@@ -28,83 +28,61 @@ class ProviderBinding extends Binding {
                              {Type scope}) :
                               super(key, scope: scope),
                               closureMirror = closureMirror,
-                              methodMirror = closureMirror.function;
-
-  Object buildInstance(DependencyResolution dependencyResolution) {
-    if (!_satisfiesDependencies(dependencyResolution)) {
-      throw new ArgumentError('Dependencies were not satisfied');
-    }
-
-    var positionalArguments =
-          _getPositionalArgsFromResolution(dependencyResolution);
-    var namedArguments =
-          _getNamedArgsFromResolution(dependencyResolution);
-
-    return closureMirror.apply(positionalArguments, namedArguments).reflectee;
+                              methodMirror = closureMirror.function {
+    _findDependencies();
   }
 
-  Iterable<Dependency> get dependencies {
-      if (_dependencies == null) {
-        _dependencies = new List<Dependency>(methodMirror.parameters.length);
-        int position = 0;
+  Object buildInstance(InstanceProvider instanceProvider) {
+    return closureMirror.apply(
+        _getPositionalArguments(instanceProvider),
+        _getNamedArguments(instanceProvider)).reflectee;
+  }
 
-        methodMirror.parameters.forEach(
-          (parameter) {
-            var parameterType = (parameter.type as ClassMirror).reflectedType;
-            var annotation = Utils.findBindingAnnotation(parameter);
+  List<Object> _getPositionalArguments (InstanceProvider instanceProvider) {
+    var arguments = new List<Object>();
 
-            var key = new Key(
-                parameterType,
-                annotatedWith: annotation);
+    _positionalDependencies.forEach((key, isOptional) =>
+      arguments.add(instanceProvider(key, isOptional))
+    );
 
-            var dependency =
-                new Dependency(parameter.simpleName,
-                               key,
-                               isNullable: parameter.isNamed ||
-                                           parameter.isOptional,
-                               isPositional: !parameter.isNamed,
-                               position: position);
+    return arguments;
+  }
 
-            _dependencies[position] = dependency;
+  Map<Symbol, Object> _getNamedArguments (InstanceProvider instanceProvider) {
+    var arguments = new Map<Symbol, Object>();
 
-            position++;
-          });
-      }
+    _namedDependencies
+      .forEach((key, symbol) =>
+        arguments[symbol] = instanceProvider(key, true)
+    );
 
-      return new UnmodifiableListView(_dependencies);
-    }
+    return arguments;
+  }
 
-  List<Object> _getPositionalArgsFromResolution(
-        DependencyResolution dependencyResolution) {
-      var positionalArgs = new List(dependencyResolution.instances.length);
+  _findDependencies () {
+    _positionalDependencies = new Map<Key, bool>();
+    _namedDependencies = new Map<Key, Symbol>();
+    var parameters = methodMirror.parameters;
+    int position = 0;
 
-      dependencyResolution.instances.forEach(
-          (dependency, instance) {
-            if (dependency.isPositional) {
-              positionalArgs[dependency.position] = instance;
-            }
-          });
+    parameters.forEach(
+      (parameter) {
+        var parameterType = parameter.type.reflectedType;
+        var annotation = Utils.findBindingAnnotation(parameter);
 
-      return positionalArgs.where((e) => e != null).toList(growable: false);
-    }
+        var key = new Key(
+            parameterType,
+            annotatedWith: annotation);
 
-    Map<Symbol, Object> _getNamedArgsFromResolution(
-        DependencyResolution dependencyResolution) {
-      var namedArgs= new Map();
+        if (parameter.isNamed) {
+          _namedDependencies[key] = parameter.simpleName;
+        } else {
+          _positionalDependencies[key] = parameter.isOptional;
+        }
 
-      dependencyResolution.instances.forEach(
-          (dependency, instance) {
-            if (!dependency.isPositional) {
-              namedArgs[dependency.name] = instance;
-            }
-          });
-
-      return namedArgs;
-    }
-
-    bool _satisfiesDependencies(DependencyResolution resolution) =>
-      dependencies.every((dependency) =>
-        dependency.isNullable || resolution[dependency] != null);
+        position++;
+      });
+  }
 }
 
 /**
@@ -121,7 +99,7 @@ class ConstructorBinding extends ProviderBinding {
 
   ConstructorBinding.withMirror(Key key, ClassMirror classMirror, {Type scope}):
     super.withMirror(key,
-              new ClassClosureMirrorAdapter(classMirror,
+              new ConstructorClosureMirrorAdapter(classMirror,
                                                 selectConstructor(classMirror)),
               scope: scope);
 
@@ -169,12 +147,9 @@ class Rebinding extends Binding {
   Rebinding(Key key, this.rebindingKey, {Type scope}) :
     super(key, scope: scope);
 
-  Iterable<Dependency> get dependencies =>
-      [new Dependency(#rebind,rebindingKey)];
-
   @override
-  Object buildInstance(DependencyResolution dependencyResolution) =>
-      dependencyResolution.instances.values.first;
+  Object buildInstance(InstanceProvider instanceProvider) =>
+      instanceProvider(rebindingKey);
 
 }
 
@@ -183,11 +158,11 @@ class Rebinding extends Binding {
  * method as if it was a closure. This is like the reflective version of a
  * wannabe function.
  */
-class InstanceClosureMirrorAdapter implements ClosureMirror {
+class MethodClosureMirrorAdapter implements ClosureMirror {
   final InstanceMirror instanceMirror;
   final MethodMirror methodMirror;
 
-  InstanceClosureMirrorAdapter(this.instanceMirror, this.methodMirror);
+  MethodClosureMirrorAdapter(this.instanceMirror, this.methodMirror);
 
   @override
   InstanceMirror apply(List positionalArguments,
@@ -234,11 +209,11 @@ class InstanceClosureMirrorAdapter implements ClosureMirror {
  * An implementation of [ClosureMirror] that allows us to call a class
  * constructor as if it was a closure.
  */
-class ClassClosureMirrorAdapter implements ClosureMirror {
+class ConstructorClosureMirrorAdapter implements ClosureMirror {
   final ClassMirror classMirror;
   final MethodMirror constructorMirror;
 
-  ClassClosureMirrorAdapter(this.classMirror, this.constructorMirror);
+  ConstructorClosureMirrorAdapter(this.classMirror, this.constructorMirror);
 
   @override
   InstanceMirror apply(List positionalArguments,

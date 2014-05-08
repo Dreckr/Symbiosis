@@ -19,9 +19,6 @@ abstract class Scope {
   /// Stores an [instance] of [key]
   void storeInstance(Key key, Object instance);
 
-  /// Returns whether this scope has an instance of [key]
-  bool hasInstanceOf(Key key);
-
   /// Returns the stored instance of [key], if found
   Object getInstanceOf(Key key);
 
@@ -29,23 +26,15 @@ abstract class Scope {
 
 /// A scope for instances with a lifetime as long as the application.
 class SingletonScope implements Scope {
-  Map<Key, Object> _instancePool = new Map<Key, Object>();
+  final Map<Key, Object> _instancePool = new Map<Key, Object>();
 
   bool get isInProgress => true;
 
   Map<Key, Object> get instancePool => new UnmodifiableMapView(_instancePool);
 
   void storeInstance(Key key, Object instance) {
-    if (_instancePool.containsKey(key)) {
-      throw new StateError("Scope already has an instance of $key");
-    }
-
     _instancePool[key] = instance;
   }
-
-  @override
-  bool hasInstanceOf(Key key) =>
-      _instancePool.containsKey(key);
 
   @override
   Object getInstanceOf(Key key) =>
@@ -63,28 +52,18 @@ class ScopedBinding implements Binding {
     _binding = binding;
 
   @override
-  Object buildInstance(DependencyResolution dependencyResolution) {
+  Object buildInstance(InstanceProvider instanceProvider) {
     if (!_scope.isInProgress) {
       throw new ArgumentError("${scope} is not in progress");
     }
 
-    if (_scope.hasInstanceOf(key)) {
-      return _scope.getInstanceOf(key);
-    } else {
-      var instance = _binding.buildInstance(dependencyResolution);
+    var instance = _scope.getInstanceOf(key);
+    if (instance == null) {
+      instance = _binding.buildInstance(instanceProvider);
       _scope.storeInstance(key, instance);
-
-      return instance;
     }
-  }
 
-  @override
-  Iterable<Dependency> get dependencies {
-    if (_scope.isInProgress && _scope.hasInstanceOf(key)) {
-      return [];
-    } else {
-      return _binding.dependencies;
-    }
+    return instance;
   }
 
   @override

@@ -19,12 +19,8 @@ void testBindingImplementations() {
         binding = new InstanceBinding(key, instance);
       });
 
-      test("Has no dependency", () {
-        expect(binding.dependencies, isEmpty);
-      });
-
       test("Builds instance", () {
-        var builtInstance = binding.buildInstance(new DependencyResolution());
+        var builtInstance = binding.buildInstance((key, [isOptional]) => null);
         expect(identical(instance, builtInstance), isTrue);
       });
     });
@@ -57,42 +53,20 @@ void testBindingImplementations() {
         optionalNamedBinding = new ProviderBinding(key, optionalNamedProvider);
       });
 
-      test("Parameters are mapped as dependencies", () {
-        void testDependencyMapping
-            (binding, [dependenciesLength = 0, isNullable, isPositional]) {
-          var dependencies = binding.dependencies;
-          expect(dependencies, hasLength(dependenciesLength));
-          if (dependenciesLength == 1) {
-            expect(dependencies[0].name, equals(#string));
-            expect(dependencies[0].key, equals(new Key(String)));
-            expect(dependencies[0].isNullable, isNullable);
-            expect(dependencies[0].isPositional, isPositional);
-          }
-        };
-
-        testDependencyMapping(noArgsBinding);
-        testDependencyMapping(positionalBinding, 1, isFalse, isTrue);
-        testDependencyMapping(optionalPositionalBinding, 1, isTrue, isTrue);
-        testDependencyMapping(optionalNamedBinding, 1, isTrue, isFalse);
-      });
-
       test("Builds instance", () {
         var dependencyResolution;
 
         void testInstantiation (binding, unresolvedMatcher) {
           var unresolvedInstantiation = () {
-            dependencyResolution = new DependencyResolution();
-            binding.buildInstance(dependencyResolution);
+            binding.buildInstance((key, [isOptional]) {
+              if (isOptional)
+                return null;
+              else
+                throw new ArgumentError();
+            });
           };
 
-          var dependencies = binding.dependencies;
-          var instances = new Map();
-          if (dependencies.length == 1) {
-            instances[dependencies[0]] = "test";
-          }
-
-          dependencyResolution = new DependencyResolution(instances);
-          expect(binding.buildInstance(dependencyResolution),
+          expect(binding.buildInstance((key, [isOptional]) => "test"),
                  new isInstanceOf<Foo>());
           expect(
               unresolvedInstantiation,
