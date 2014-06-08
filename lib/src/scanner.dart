@@ -3,9 +3,8 @@ library symbiosis.scanner;
 import 'dart:collection';
 import 'dart:mirrors';
 import 'package:inject/inject.dart';
+import 'basic_module.dart';
 import 'binding.dart';
-import 'key.dart';
-import 'mirror_bindings.dart';
 import 'module.dart';
 import 'scope.dart';
 import 'utils.dart' as Utils;
@@ -29,7 +28,7 @@ class ScannerModule extends Module {
   List<Scope> get scopes => new UnmodifiableListView(_scopes);
 
   ScannerModule() {
-    _scan();
+    scan();
   }
 
   void install(Module module) {
@@ -37,28 +36,57 @@ class ScannerModule extends Module {
     _bindings.addAll(module.bindings);
   }
 
-  void _scan() {
+  void scan() {
     currentMirrorSystem().libraries.forEach((uri, library) {
       library.declarations.forEach((name, declaration) {
-        if (declaration is ClassMirror) {
-          if (declaration.metadata.any(
-              (metadataMirror) => metadataMirror.reflectee == inject)) {
-            var key = new Key(declaration.reflectedType,
-                annotatedWith: Utils.findBindingAnnotation(declaration));
-            var scope = Utils.findScopeAnnotation(declaration);
-            var binding = new ConstructorBinding.withMirror(key, declaration,
-                scope: scope != null ? scope.scopeType : null);
-
-            _bindings.add(binding);
-          }
+        if (Utils.hasInjectAnnotation(declaration)) {
+          registerBinding(declaration);
         }
       });
     });
   }
+
+  void registerBinding(DeclarationMirror declaration) {
+
+    var bindingBuilder;
+    var scopeAnnotation = Utils.findScopeAnnotation(declaration);
+    var implementedByAnnotation =
+        Utils.findImplementedByAnnotation(declaration);
+    var providerAnnotation =
+        Utils.findProvidedByAnnotation(declaration);
+
+    if (declaration is ClassMirror) {
+      bindingBuilder = new BindingBuilder(declaration.reflectedType,
+          Utils.findBindingAnnotation(declaration));
+    } else {
+      return;
+    }
+
+    if (scopeAnnotation != null) {
+      bindingBuilder.scope = scopeAnnotation.scopeType;
+    }
+
+    if (implementedByAnnotation != null) {
+      bindingBuilder.to = implementedByAnnotation.type;
+    }
+
+    if (providerAnnotation != null) {
+      bindingBuilder.provider = providerAnnotation.provider;
+    }
+
+    _bindings.add(bindingBuilder.build());
+  }
+
 }
 
 class ImplementedBy {
   final Type type;
 
   const ImplementedBy(this.type);
+}
+
+class ProvidedBy {
+  final Function provider;
+
+  const ProvidedBy(this.provider);
 }

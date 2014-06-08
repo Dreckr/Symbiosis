@@ -25,9 +25,17 @@ ScopeAnnotation findScopeAnnotation (DeclarationMirror declarationMirror) =>
     findMetadata(declarationMirror,
                  (metadata) => metadata.reflectee is ScopeAnnotation);
 
-ImplementedBy findImplementedBy (DeclarationMirror declarationMirror)
+ImplementedBy findImplementedByAnnotation (DeclarationMirror declarationMirror)
   => findMetadata(declarationMirror,
                   (metadata) => metadata.reflectee is ImplementedBy);
+
+ProvidedBy findProvidedByAnnotation (DeclarationMirror declarationMirror)
+  => findMetadata(declarationMirror,
+                  (metadata) => metadata.reflectee is ProvidedBy);
+
+bool hasInjectAnnotation(DeclarationMirror declaration) =>
+      declaration.metadata.any(
+                  (metadataMirror) => metadataMirror.reflectee == inject);
 
 List<MethodMirror> getConstructorsMirrors(ClassMirror classMirror) {
   var constructors = new List<MethodMirror>();

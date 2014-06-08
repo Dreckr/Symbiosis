@@ -98,6 +98,7 @@ abstract class BasicModule implements Module {
   configure();
 }
 
+
 /// A configurable builder of bindings
 class BindingBuilder {
   /// The type to be binded
@@ -111,6 +112,7 @@ class BindingBuilder {
 
   /// If set, builds a binding that links [type] to [to]
   Type to;
+
   /// The annotation of [to]
   BindingAnnotation toAnnotation;
 

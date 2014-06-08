@@ -132,7 +132,7 @@ class Injector {
     return instance;
   }
 
-  _provide (Key key, [bool isOptional]) {
+  _provide (Key key, [bool isOptional = false]) {
     var binding;
     if (isOptional) {
       binding = _findBinding(key);
