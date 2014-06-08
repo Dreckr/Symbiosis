@@ -42,19 +42,13 @@ class Injector {
   final Map<Type, Scope> _scopes = new Map();
 
   /// A unmodifiable list of all bindings registered in this injector.
-  List<Binding> get bindings {
-    var bindings = [];
-
-    bindings.addAll(_bindings.values);
-    if (parent != null) {
-      bindings.addAll(parent.bindings);
-    }
-
-    return bindings;
-  }
+  List<Binding> get bindings => new UnmodifiableListView(_bindings.values);
 
 /// A unmodifiable list of all scopes registered in this injector.
   List<Scope> get scopes => new UnmodifiableListView(_scopes.values);
+
+  _InjectionContext context;
+
   /**
    * Constructs a new Injector using [modules] to provide bindings. If [parent]
    * is specificed, the injector is a child injector that inherits bindings
@@ -124,32 +118,33 @@ class Injector {
   Object getInstanceOfBinding(Binding binding) =>
       _getInstanceOfBinding(binding);
 
-  Object _getInstanceOfBinding(Binding binding, [_InjectionContext context]) {
+  Object _getInstanceOfBinding(Binding binding) {
     if (context == null) {
       context = new _InjectionContext(binding.key);
     } else {
       context.registerInjection(binding.key);
     }
 
-    var instance = binding.buildInstance(
-        (Key key, [bool isOptional]) {
-      var binding;
-      if (isOptional) {
-        binding = _findBinding(key);
-
-        if (binding == null) {
-          return null;
-        }
-      } else {
-        binding = _getBinding(key);
-      }
-
-      return this._getInstanceOfBinding(binding, context);
-    });
+    var instance = binding.buildInstance(_provide);
 
     context.unregisterLast();
 
     return instance;
+  }
+
+  _provide (Key key, [bool isOptional]) {
+    var binding;
+    if (isOptional) {
+      binding = _findBinding(key);
+
+      if (binding == null) {
+        return null;
+      }
+    } else {
+      binding = _getBinding(key);
+    }
+
+    return this._getInstanceOfBinding(binding);
   }
 
   Binding _getBinding(Key key) {
@@ -164,9 +159,9 @@ class Injector {
 
   Binding _findBinding(Key key) {
     return _bindings.containsKey(key)
-        ? _bindings[key]
+      ? _bindings[key]
         : (parent != null)
-            ? parent._getBinding(key)
+          ? parent._findBinding(key)
             : null;
   }
 

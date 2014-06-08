@@ -12,6 +12,7 @@ import 'injector.dart';
 class Key {
   final Type type;
   final BindingAnnotation annotation;
+  int _hashCode;
 
   Key(Type this.type, {Object annotatedWith}) :
       annotation = annotatedWith {
@@ -21,8 +22,12 @@ class Key {
   bool operator ==(o) => o is Key && o.type == type
       && o.annotation == annotation;
 
-  int get hashCode => type.hashCode * 37 +
-      (annotation != null ? annotation.hashCode : 0);
+  int get hashCode {
+    if (_hashCode == null)
+      _hashCode = type.hashCode;
+
+    return _hashCode;
+  }
 
   String toString() => 'Key: $type'
       '${(annotation!=null?' annotated with $annotation': '')}';
